@@ -10,7 +10,9 @@ load_dotenv()
 # Configuration de l'API - Priorité aux variables d'environnement Docker
 API_BASE_URL = os.getenv('API_BASE_URL', 'http://backend:8000/api/v1/climate')
 API_BASE_URL_LOCAL = os.getenv('API_BASE_URL_LOCAL', 'http://localhost:8000/api/v1/climate')
-API_BASE_URL_REMOTE = os.getenv('API_BASE_URL_REMOTE', 'https://backend-dasboard-climatique-1.onrender.com/api/v1/climate')
+
+# URL publique ngrok pour partage
+NGROK_URL = os.getenv('NGROK_URL', 'http://localhost:8501')
 
 # Configuration Streamlit
 STREAMLIT_SERVER_PORT = int(os.getenv('STREAMLIT_SERVER_PORT', 8501))
@@ -26,14 +28,17 @@ def get_api_url():
         return API_BASE_URL  # http://backend:8000/api/v1/climate
     elif DEPLOYMENT_MODE == 'local':
         return API_BASE_URL_LOCAL  # http://localhost:8000/api/v1/climate
-    elif DEPLOYMENT_MODE == 'remote':
-        return API_BASE_URL_REMOTE  # URL Render/Railway
     else:
         return API_BASE_URL  # Par défaut Docker
+
+def get_public_url():
+    """Retourne l'URL publique du dashboard"""
+    return NGROK_URL
 
 # Affichage de la configuration (pour debug)
 if DEBUG_MODE:
     print(f"🔧 Configuration:")
     print(f"   API URL: {get_api_url()}")
+    print(f"   Public URL: {get_public_url()}")
     print(f"   Streamlit Port: {STREAMLIT_SERVER_PORT}")
     print(f"   Debug Mode: {DEBUG_MODE}")
