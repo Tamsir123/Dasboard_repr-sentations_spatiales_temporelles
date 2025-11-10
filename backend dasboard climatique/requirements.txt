@@ -1,0 +1,19 @@
+# API Web
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+gunicorn>=21.2.0
+
+# Traitement des données NetCDF
+xarray>=2023.12.0
+netCDF4>=1.6.5
+
+# Calculs scientifiques
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Visualisations (optionnel)
+matplotlib>=3.7.0
+cartopy>=0.22.0
+
+# Utilitaires
+python-multipart>=0.0.6

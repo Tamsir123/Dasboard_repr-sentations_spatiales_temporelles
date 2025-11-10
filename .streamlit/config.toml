@@ -1,0 +1,14 @@
+# Configuration pour Streamlit Cloud
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+
+[theme]
+primaryColor = "#FF6B6B"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
+
+[browser]
+gatherUsageStats = false
