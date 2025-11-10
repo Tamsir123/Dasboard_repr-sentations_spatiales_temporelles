@@ -21,3 +21,6 @@ t=2025-11-10T14:26:27+0100 lvl=info msg="join connections" obj=join id=97bee71ec
 t=2025-11-10T14:27:02+0100 lvl=info msg="join connections" obj=join id=8e9f23679b42 l=127.0.0.1:8501 r=41.251.254.141:51428
 t=2025-11-10T14:27:02+0100 lvl=info msg="join connections" obj=join id=5d9cf2077176 l=127.0.0.1:8501 r=41.251.254.141:51428
 t=2025-11-10T14:27:03+0100 lvl=info msg="join connections" obj=join id=f061ce23c3b1 l=127.0.0.1:8501 r=41.251.254.145:45732
+t=2025-11-10T14:28:52+0100 lvl=info msg="join connections" obj=join id=e34e1823b4c1 l=127.0.0.1:8501 r=41.251.254.141:51164
+t=2025-11-10T14:28:52+0100 lvl=info msg="join connections" obj=join id=603fb6910d97 l=127.0.0.1:8501 r=41.251.254.141:51164
+t=2025-11-10T14:28:53+0100 lvl=info msg="join connections" obj=join id=5133785fd2fa l=127.0.0.1:8501 r=41.251.254.141:51165
