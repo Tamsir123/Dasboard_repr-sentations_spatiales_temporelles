@@ -1,0 +1,23 @@
+nohup: ignoring input
+t=2025-11-10T14:25:13+0100 lvl=info msg="no configuration paths supplied"
+t=2025-11-10T14:25:13+0100 lvl=info msg="using configuration at default config path" path=/home/tamsir/.config/ngrok/ngrok.yml
+t=2025-11-10T14:25:13+0100 lvl=info msg="open config file" path=/home/tamsir/.config/ngrok/ngrok.yml err=nil
+t=2025-11-10T14:25:13+0100 lvl=info msg="starting web service" obj=web addr=127.0.0.1:4040 allow_hosts=[]
+t=2025-11-10T14:25:14+0100 lvl=info msg="client session established" obj=tunnels.session
+t=2025-11-10T14:25:14+0100 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2025-11-10T14:25:14+0100 lvl=info msg="update available" obj=updater
+t=2025-11-10T14:25:14+0100 lvl=info msg="started tunnel" obj=tunnels name=command_line addr=http://localhost:8501 url=https://definitely-unpragmatical-rosemarie.ngrok-free.dev
+t=2025-11-10T14:25:16+0100 lvl=info msg="join connections" obj=join id=29c87f1a69cc l=127.0.0.1:8501 r=41.251.254.141:51428
+t=2025-11-10T14:25:16+0100 lvl=info msg="join connections" obj=join id=2c305e270600 l=127.0.0.1:8501 r=41.251.254.141:51428
+t=2025-11-10T14:25:16+0100 lvl=info msg="join connections" obj=join id=d8c893024ba4 l=127.0.0.1:8501 r=41.251.254.141:51432
+t=2025-11-10T14:25:25+0100 lvl=info msg=start pg=/api/tunnels id=7cca6fb6c3ed5cac
+t=2025-11-10T14:25:25+0100 lvl=info msg=end pg=/api/tunnels id=7cca6fb6c3ed5cac status=200 dur=494.609µs
+t=2025-11-10T14:25:35+0100 lvl=info msg="join connections" obj=join id=a143e8788cb2 l=127.0.0.1:8501 r=41.251.254.145:57452
+t=2025-11-10T14:25:59+0100 lvl=info msg="join connections" obj=join id=4b62272020f8 l=127.0.0.1:8501 r=41.251.254.141:51135
+t=2025-11-10T14:25:59+0100 lvl=info msg="join connections" obj=join id=52586ce34111 l=127.0.0.1:8501 r=41.251.254.141:51135
+t=2025-11-10T14:25:59+0100 lvl=info msg="join connections" obj=join id=cef598ca6a69 l=127.0.0.1:8501 r=41.251.254.141:51135
+t=2025-11-10T14:26:01+0100 lvl=info msg="join connections" obj=join id=56be74236074 l=127.0.0.1:8501 r=41.251.254.141:51137
+t=2025-11-10T14:26:27+0100 lvl=info msg="join connections" obj=join id=97bee71ec78f l=127.0.0.1:8501 r=41.251.254.141:51144
+t=2025-11-10T14:27:02+0100 lvl=info msg="join connections" obj=join id=8e9f23679b42 l=127.0.0.1:8501 r=41.251.254.141:51428
+t=2025-11-10T14:27:02+0100 lvl=info msg="join connections" obj=join id=5d9cf2077176 l=127.0.0.1:8501 r=41.251.254.141:51428
+t=2025-11-10T14:27:03+0100 lvl=info msg="join connections" obj=join id=f061ce23c3b1 l=127.0.0.1:8501 r=41.251.254.145:45732
