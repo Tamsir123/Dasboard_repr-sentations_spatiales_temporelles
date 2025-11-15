@@ -19,7 +19,7 @@ STREAMLIT_SERVER_PORT = int(os.getenv('STREAMLIT_SERVER_PORT', 8501))
 STREAMLIT_SERVER_ADDRESS = os.getenv('STREAMLIT_SERVER_ADDRESS', '0.0.0.0')
 
 # Mode de déploiement
-DEPLOYMENT_MODE = os.getenv('DEPLOYMENT_MODE', 'docker').lower()  # docker, local, remote
+DEPLOYMENT_MODE = os.getenv('DEPLOYMENT_MODE', 'local').lower()  # docker, local, remote
 DEBUG_MODE = os.getenv('DEBUG_MODE', 'False').lower() == 'true'
 
 def get_api_url():

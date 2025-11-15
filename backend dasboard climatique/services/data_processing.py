@@ -16,6 +16,10 @@ class ClimateDataProcessor:
         self.tasmin_path = self.data_dir / "tasmin_daily_Senegal_1960_2024.nc"
         self.tasmax_path = self.data_dir / "tasmax_daily_Senegal_1960_2024.nc"
         
+        # Fichiers de localités
+        self.cities_file = self.data_dir / "senegal_cities.csv"
+        self.grid_points_file = self.data_dir / "senegal_grid_points.csv"
+        
         print(f"Répertoire des données: {self.data_dir}")
         print(f"Chemin tasmin: {self.tasmin_path}")
         print(f"Chemin tasmax: {self.tasmax_path}")
@@ -25,6 +29,10 @@ class ClimateDataProcessor:
         self._tasmax_ds = None
         self._tasmin = None
         self._tasmax = None
+        
+        # Cache pour les localités
+        self._cities_data = None
+        self._grid_points_data = None
         
         # Cache agressif pour les résultats calculés
         self._result_cache = {}
@@ -291,3 +299,173 @@ class ClimateDataProcessor:
         
         else:
             raise ValueError(f"Format non supporté: {format_type}")
+    
+    def get_available_localities(self) -> Dict:
+        """Retourne toutes les localités disponibles (villes + points de grille)"""
+        cities = self.get_cities()
+        grid_points = self.get_grid_points()
+        
+        return {
+            "cities": cities,
+            "grid_points": grid_points[:50],  # Limiter à 50 pour l'interface
+            "total_grid_points": len(grid_points),
+            "summary": {
+                "cities_count": len(cities),
+                "grid_points_count": len(grid_points),
+                "coverage": {
+                    "lat_range": [12.0, 17.0],
+                    "lon_range": [-18.0, -11.0]
+                }
+            }
+        }
+    
+    def get_cities(self) -> List[Dict]:
+        """Charge et retourne les villes principales du Sénégal"""
+        if self._cities_data is None:
+            if self.cities_file.exists():
+                df = pd.read_csv(self.cities_file)
+                self._cities_data = df.to_dict('records')
+            else:
+                self._cities_data = []
+        return self._cities_data
+    
+    def get_grid_points(self) -> List[Dict]:
+        """Charge et retourne tous les points de grille"""
+        if self._grid_points_data is None:
+            if self.grid_points_file.exists():
+                df = pd.read_csv(self.grid_points_file)
+                self._grid_points_data = df.to_dict('records')
+            else:
+                self._grid_points_data = []
+        return self._grid_points_data
+    
+    def get_locality_time_series(self, variable: str, lat_idx: int, lon_idx: int, 
+                                start_year: int, end_year: int) -> Dict:
+        """Récupère la série temporelle pour une localité spécifique"""
+        cache_key = self._get_cache_key("locality_time_series", variable, lat_idx, lon_idx, start_year, end_year)
+        
+        # Vérifier le cache
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+        
+        self._load_data()
+        
+        # Sélectionner la variable
+        if variable == "tasmin":
+            data = self._tasmin
+        elif variable == "tasmax":
+            data = self._tasmax
+        else:
+            raise ValueError(f"Variable inconnue: {variable}")
+        
+        # Sélectionner le point spécifique
+        point_data = data.isel(latitude=lat_idx, longitude=lon_idx)
+        
+        # Filtrer par période
+        data_filtered = point_data.sel(time=slice(f"{start_year}", f"{end_year}"))
+        
+        # Calculer la moyenne annuelle
+        annual_mean = data_filtered.resample(time="1Y").mean()
+        
+        # Convertir en format JSON-friendly
+        years = annual_mean.time.dt.year.values.tolist()
+        values = [float(v) if not np.isnan(v) else None for v in annual_mean.values]
+        
+        result = {
+            "variable": variable,
+            "lat_idx": lat_idx,
+            "lon_idx": lon_idx,
+            "latitude": float(data.latitude.values[lat_idx]),
+            "longitude": float(data.longitude.values[lon_idx] - 360 if data.longitude.values[lon_idx] > 180 else data.longitude.values[lon_idx]),
+            "start_year": start_year,
+            "end_year": end_year,
+            "years": years,
+            "values": values,
+            "unit": "°C"
+        }
+        
+        # Mettre en cache
+        self._set_cached_result(cache_key, result)
+        return result
+    
+    def get_locality_statistics(self, variable: str, lat_idx: int, lon_idx: int,
+                               start_year: int, end_year: int) -> Dict:
+        """Calcule les statistiques pour une localité spécifique"""
+        cache_key = self._get_cache_key("locality_stats", variable, lat_idx, lon_idx, start_year, end_year)
+        
+        # Vérifier le cache
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            return cached_result
+        
+        self._load_data()
+        
+        # Sélectionner la variable
+        if variable == "tasmin":
+            data = self._tasmin
+        elif variable == "tasmax":
+            data = self._tasmax
+        else:
+            raise ValueError(f"Variable inconnue: {variable}")
+        
+        # Sélectionner le point spécifique
+        point_data = data.isel(latitude=lat_idx, longitude=lon_idx)
+        
+        # Filtrer par période
+        data_filtered = point_data.sel(time=slice(f"{start_year}", f"{end_year}"))
+        
+        # Calculer les statistiques
+        result = {
+            "variable": variable,
+            "lat_idx": lat_idx,
+            "lon_idx": lon_idx,
+            "latitude": float(data.latitude.values[lat_idx]),
+            "longitude": float(data.longitude.values[lon_idx] - 360 if data.longitude.values[lon_idx] > 180 else data.longitude.values[lon_idx]),
+            "start_year": start_year,
+            "end_year": end_year,
+            "mean": float(data_filtered.mean().values),
+            "min": float(data_filtered.min().values),
+            "max": float(data_filtered.max().values),
+            "std": float(data_filtered.std().values),
+            "unit": "°C"
+        }
+        
+        # Mettre en cache
+        self._set_cached_result(cache_key, result)
+        return result
+    
+    def find_locality_by_coordinates(self, lat: float, lon: float, tolerance: float = 0.5) -> Dict:
+        """Trouve la localité la plus proche des coordonnées données"""
+        self._load_data()
+        
+        latitudes = self._tasmin.latitude.values
+        longitudes = self._tasmin.longitude.values
+        
+        # Convertir les longitudes
+        longitudes_converted = np.where(longitudes > 180, longitudes - 360, longitudes)
+        
+        # Trouver le point le plus proche
+        lat_diff = np.abs(latitudes - lat)
+        lon_diff = np.abs(longitudes_converted - lon)
+        
+        lat_idx = np.argmin(lat_diff)
+        lon_idx = np.argmin(lon_diff)
+        
+        grid_lat = latitudes[lat_idx]
+        grid_lon = longitudes_converted[lon_idx]
+        
+        # Calculer la distance
+        distance = np.sqrt((lat - grid_lat)**2 + (lon - grid_lon)**2) * 111  # Approximation en km
+        
+        if distance > tolerance * 111:  # Si trop loin
+            return None
+        
+        return {
+            "lat_idx": int(lat_idx),
+            "lon_idx": int(lon_idx),
+            "grid_latitude": float(grid_lat),
+            "grid_longitude": float(grid_lon),
+            "distance_km": float(distance),
+            "grid_id": f"P_{lat_idx:02d}_{lon_idx:02d}"
+        }
