@@ -63,109 +63,9 @@ def check_api_health():
         print(f"Health check failed: {e}")
         return False
 
-# La fonction fetch_localities() n'est plus nécessaire avec notre liste hardcodée
-
-@st.cache_data(ttl=300)
-def fetch_locality_data(variable, start_year, end_year, lat_idx, lon_idx, city_name):
-    """Récupérer les données spécifiques à une localité via l'API backend"""
-    try:
-        # Vérifier la santé de l'API
-        if not check_api_health():
-            st.warning("⚠️ API indisponible - Utilisation des données nationales")
-            return fetch_data(variable, start_year, end_year)
-        
-        # Fonction helper pour les requêtes avec retry
-        def make_request_with_retry(endpoint, params, max_retries=2):
-            for attempt in range(max_retries):
-                try:
-                    response = requests.get(f"{API_BASE_URL}/{endpoint}", 
-                                          params=params, timeout=30)
-                    if response.status_code == 200:
-                        return response.json()
-                    elif response.status_code == 502:
-                        continue
-                    else:
-                        continue
-                except:
-                    continue
-            return None
-        
-        # Import time pour les sleeps
-        import time
-        
-        # Récupération des données spécifiques à la localité
-        params = {
-            'var': variable,
-            'lat_idx': lat_idx,
-            'lon_idx': lon_idx,
-            'start_year': start_year,
-            'end_year': end_year
-        }
-        
-        # Essayer de récupérer les données de localité
-        temporal_data = make_request_with_retry("localities/time-series", params)
-        
-        if temporal_data:
-            # Si les données de localité sont disponibles
-            stats_data = make_request_with_retry("localities/statistics", params)
-            return {
-                'years': temporal_data.get('years', []),
-                'temperatures': temporal_data.get('values', []),
-                'monthly_climatology': [],  
-                'months': ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'],
-                'stats': stats_data or {},
-                'spatial': None,
-                'locality_info': {
-                    'lat_idx': lat_idx,
-                    'lon_idx': lon_idx,
-                    'city_name': city_name
-                }
-            }
-        else:
-            # Fallback vers les données nationales
-            st.info(f"ℹ️ Données spécifiques à {city_name} indisponibles - Utilisation des données nationales")
-            return fetch_data(variable, start_year, end_year)
-        
-    except Exception as e:
-        st.warning(f"⚠️ Problème avec les données de localité: {e}")
-        st.info("🔄 Basculement vers les données nationales")
-        return fetch_data(variable, start_year, end_year)
-
-def adapt_locality_data_format(locality_data):
-    """Adapter les données de localité au format attendu par les graphiques"""
-    if not locality_data:
-        return None
-    
-    # Convertir les données temporelles
-    years = locality_data.get('years', [])
-    temperatures = locality_data.get('temperatures', [])
-    
-    # Créer des données factices pour la climatologie si pas disponibles
-    monthly_climatology = []
-    if temperatures:
-        # Utiliser la moyenne annuelle pour chaque mois (approximation)
-        avg_temp = sum(temperatures) / len(temperatures)
-        monthly_climatology = [avg_temp] * 12
-    
-    # Adapter les stats
-    stats = locality_data.get('stats', {})
-    
-    # Format attendu par les graphiques
-    adapted_data = {
-        'years': years,
-        'temperatures': temperatures,
-        'monthly_climatology': monthly_climatology,
-        'months': ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'],
-        'stats': stats,
-        'spatial': locality_data.get('spatial'),
-        'locality_info': locality_data.get('locality_info')
-    }
-    
-    return adapted_data
-
 @st.cache_data(ttl=300)
 def fetch_data(variable, start_year, end_year):
-    """Récupérer les données générales (moyenne nationale) via l'API backend"""
+    """Récupérer les données via l'API backend avec gestion d'erreur améliorée"""
     try:
         # Vérifier la santé de l'API
         if not check_api_health():
@@ -200,7 +100,7 @@ def fetch_data(variable, start_year, end_year):
         # Import time pour les sleeps
         import time
         
-        # Récupération des données générales avec retry
+        # Récupération des données avec retry
         params = {'var': variable, 'start_year': start_year, 'end_year': end_year}
         
         temporal_data = make_request_with_retry("time-series", params)
@@ -495,10 +395,10 @@ def main():
     st.title("🌡️ Dashboard Climatique du Sénégal")
     st.markdown("*Visualisation et téléchargement direct des données climatiques*")
     
-    # Paramètres avec sélecteur de localités
+    # Paramètres simples
     st.markdown("### Paramètres")
     
-    # Première ligne - Paramètres principaux
+    # Colonnes simples
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -510,10 +410,10 @@ def main():
         )
     
     with col2:
-        start_year = st.number_input("Année début", value=1980, min_value=1960, max_value=2024, key="start_year")
+        start_year = st.number_input("Année début", value=1960, min_value=1960, max_value=2024, key="start_year")
     
     with col3:
-        end_year = st.number_input("Année fin", value=2020, min_value=1960, max_value=2024, key="end_year")
+        end_year = st.number_input("Année fin", value=2024, min_value=1960, max_value=2024, key="end_year")
     
     with col4:
         format_type = st.selectbox(
@@ -522,52 +422,6 @@ def main():
             format_func=lambda x: x.upper(),
             key="format_select"
         )
-    
-    # Sélecteur de localités simple
-    st.markdown("### 📍 Sélection de localité")
-    
-    # Liste des localités principales du Sénégal (hardcodées pour éviter les problèmes d'API)
-    localities_list = [
-        {"name": "🇸🇳 Moyenne nationale", "type": "national", "lat_idx": None, "lon_idx": None},
-        {"name": "Dakar", "type": "city", "lat_idx": 9, "lon_idx": 2, "lat": 14.693, "lon": -17.447},
-        {"name": "Kaolack", "type": "city", "lat_idx": 11, "lon_idx": 8, "lat": 14.159, "lon": -16.073},
-        {"name": "Saint-Louis", "type": "city", "lat_idx": 4, "lon_idx": 6, "lat": 16.033, "lon": -16.500},
-        {"name": "Thiès", "type": "city", "lat_idx": 9, "lon_idx": 4, "lat": 14.789, "lon": -16.926},
-        {"name": "Ziguinchor", "type": "city", "lat_idx": 18, "lon_idx": 7, "lat": 12.583, "lon": -16.267},
-        {"name": "Diourbel", "type": "city", "lat_idx": 9, "lon_idx": 7, "lat": 14.660, "lon": -16.233},
-        {"name": "Tambacounda", "type": "city", "lat_idx": 13, "lon_idx": 17, "lat": 13.767, "lon": -13.668},
-        {"name": "Fatick", "type": "city", "lat_idx": 11, "lon_idx": 6, "lat": 14.335, "lon": -16.407},
-        {"name": "Kolda", "type": "city", "lat_idx": 16, "lon_idx": 12, "lat": 12.894, "lon": -14.942},
-        {"name": "Matam", "type": "city", "lat_idx": 5, "lon_idx": 19, "lat": 15.655, "lon": -13.256},
-        {"name": "Kédougou", "type": "city", "lat_idx": 18, "lon_idx": 23, "lat": 12.557, "lon": -12.176},
-        {"name": "Sédhiou", "type": "city", "lat_idx": 17, "lon_idx": 14, "lat": 12.709, "lon": -15.557},
-        {"name": "Louga", "type": "city", "lat_idx": 6, "lon_idx": 7, "lat": 15.619, "lon": -16.228},
-        {"name": "Kaffrine", "type": "city", "lat_idx": 12, "lon_idx": 14, "lat": 14.106, "lon": -15.550},
-        {"name": "Touba", "type": "city", "lat_idx": 9, "lon_idx": 8, "lat": 14.850, "lon": -15.883},
-    ]
-    
-    # Dropdown simple avec toutes les localités
-    selected_locality_name = st.selectbox(
-        "Choisir une localité :",
-        options=[loc["name"] for loc in localities_list],
-        key="locality_select"
-    )
-    
-    # Trouver la localité sélectionnée
-    selected_locality = next(loc for loc in localities_list if loc["name"] == selected_locality_name)
-    
-    # Variables pour l'analyse
-    analysis_mode = selected_locality["type"]
-    lat_idx = selected_locality["lat_idx"] 
-    lon_idx = selected_locality["lon_idx"]
-    
-    # Afficher les informations de la localité sélectionnée
-    if analysis_mode == "national":
-        st.info("🇸🇳 **Analyse nationale** - Moyenne spatiale sur tout le Sénégal")
-    else:
-        st.info(f"📍 **{selected_locality['name']}** - "
-               f"Grille: ({lat_idx}, {lon_idx}) - "
-               f"Coordonnées: ({selected_locality['lat']:.3f}°N, {selected_locality['lon']:.3f}°W)")
     
     # Validation des années
     if start_year >= end_year:
@@ -620,31 +474,13 @@ def main():
     
     st.markdown("---")  # Séparateur après la navbar
     
-    # Récupération des données selon le mode d'analyse
+    # Récupération des données
     with st.spinner("Chargement des données..."):
-        if analysis_mode == "national":
-            data = fetch_data(variable, start_year, end_year)
-            location_title = "Sénégal (Moyenne nationale)"
-        else:
-            if lat_idx is not None and lon_idx is not None:
-                # Utiliser les données de localité avec les indices hardcodés
-                raw_data = fetch_locality_data(
-                    variable, start_year, end_year, 
-                    lat_idx, lon_idx, selected_locality['name']
-                )
-                # Adapter les données au format attendu par les graphiques
-                data = adapt_locality_data_format(raw_data)
-                location_title = f"{selected_locality['name']} (Localité spécifique)"
-            else:
-                st.error("❌ Problème avec les indices de localité")
-                return
+        data = fetch_data(variable, start_year, end_year)
     
     if data is None:
         st.error("❌ Impossible de récupérer les données. Vérifiez que l'API backend est démarrée.")
         return
-    
-    # Afficher le titre avec la localisation
-    st.info(f"📍 **Données analysées pour :** {location_title}")
     
     # Affichage des graphiques en grille 2x2
     col1, col2 = st.columns(2)
