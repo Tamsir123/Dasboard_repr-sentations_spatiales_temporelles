@@ -926,23 +926,48 @@ def fetch_spatial_data(variable, start_year, end_year):
             # Prendre les données du premier mois comme structure de base
             base_data = all_spatial_data[0]
             
-            # Si il y a des latitudes/longitudes/values dans les données
-            if 'latitudes' in base_data and 'longitudes' in base_data and 'values' in base_data:
-                # Calculer la moyenne des valeurs sur les mois
+            # Vérifier si nous avons la structure attendue du backend
+            if 'latitudes' in base_data and 'longitudes' in base_data and 'data' in base_data:
                 latitudes = base_data['latitudes']
                 longitudes = base_data['longitudes']
                 
-                # Moyenner les valeurs de tous les mois
-                all_values = [data['values'] for data in all_spatial_data if 'values' in data]
-                if all_values:
-                    # Convertir en numpy arrays pour faciliter la moyenne
-                    values_array = np.array(all_values)
-                    mean_values = np.mean(values_array, axis=0)
+                # Moyenner les données de tous les mois
+                all_data_points = []
+                for month_data in all_spatial_data:
+                    if 'data' in month_data:
+                        all_data_points.extend(month_data['data'])
+                
+                if all_data_points:
+                    # Créer un dictionnaire pour moyenner par coordonnées
+                    coord_values = {}
+                    for point in all_data_points:
+                        lat = point['latitude']
+                        lon = point['longitude']
+                        val = point.get(variable, 0)
+                        
+                        key = (lat, lon)
+                        if key not in coord_values:
+                            coord_values[key] = []
+                        coord_values[key].append(val)
+                    
+                    # Calculer les moyennes
+                    averaged_values = {}
+                    for coord, vals in coord_values.items():
+                        averaged_values[coord] = np.mean(vals)
+                    
+                    # Organiser en matrice selon les latitudes/longitudes
+                    values_matrix = []
+                    for lat in latitudes:
+                        row = []
+                        for lon in longitudes:
+                            val = averaged_values.get((lat, lon), np.nan)
+                            row.append(val)
+                        values_matrix.append(row)
                     
                     return {
                         'latitudes': latitudes,
                         'longitudes': longitudes,
-                        'values': mean_values.tolist()
+                        'values': values_matrix
                     }
             
             # Si structure différente, retourner la première
