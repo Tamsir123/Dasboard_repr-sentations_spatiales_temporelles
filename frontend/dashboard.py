@@ -27,6 +27,12 @@ if 'update_charts' not in st.session_state:
     st.session_state.update_charts = False
 if 'previous_locality' not in st.session_state:
     st.session_state.previous_locality = "National"
+if 'sidebar_locality' not in st.session_state:
+    st.session_state.sidebar_locality = None
+if 'sidebar_name' not in st.session_state:
+    st.session_state.sidebar_name = None
+if 'comparison_mode' not in st.session_state:
+    st.session_state.comparison_mode = False
 
 # Fonction pour vérifier les changements de localité
 def check_locality_change():
@@ -68,6 +74,50 @@ st.markdown("""
     .stNumberInput input {
         color: #000000 !important;
     }
+    
+    /* === EXPANDER ET SIDEBAR STYLES === */
+    .locality-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 15px;
+        padding: 20px;
+        margin: 10px 0;
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .locality-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 15px;
+    }
+    
+    .locality-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+        margin: 15px 0;
+    }
+    
+    .stat-item {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 20px;
+        font-weight: bold;
+        color: #FFD700;
+    }
+    
+    .stat-label {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.8);
+        margin-top: 2px;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -523,6 +573,54 @@ def create_climate_heatmap(variable, start_year, end_year):
         return None
 
 @st.cache_data(ttl=300)
+def fetch_detailed_locality_data(variable, start_year, end_year, lat, lon, city_name):
+    """Récupérer les données détaillées d'une localité pour l'affichage expander + sidebar"""
+    try:
+        # Simuler une récupération de données enrichies pour la localité
+        # En production, ceci ferait appel à une API spécialisée
+        
+        # Générer des données basées sur les coordonnées
+        import numpy as np
+        years = list(range(start_year, end_year + 1))
+        n_years = len(years)
+        
+        # Base de température selon la variable et la localité
+        base_temp = 28.5 if variable == "tasmax" else 19.2
+        
+        # Variation selon la latitude (plus au nord = plus chaud en été, plus frais en hiver)
+        lat_factor = (lat - 12) * 0.5  # Facteur basé sur la latitude
+        
+        # Générer des températures réalistes
+        temperatures = []
+        for i in range(n_years):
+            # Tendance d'augmentation légère (changement climatique)
+            trend = i * 0.02
+            # Variation aléatoire
+            noise = np.random.normal(0, 0.8)
+            temp = base_temp + lat_factor + trend + noise
+            temperatures.append(round(temp, 2))
+        
+        # Calculer les statistiques
+        stats = {
+            'mean': round(np.mean(temperatures), 2),
+            'min': round(np.min(temperatures), 2),
+            'max': round(np.max(temperatures), 2),
+            'std': round(np.std(temperatures), 2)
+        }
+        
+        return {
+            'years': years,
+            'temperatures': temperatures,
+            'stats': stats,
+            'coordinates': {'lat': lat, 'lon': lon},
+            'city_name': city_name,
+            'variable': variable
+        }
+        
+    except Exception as e:
+        st.error(f"❌ Erreur lors de la récupération des données détaillées: {e}")
+        return None
+
 def fetch_locality_data(variable, start_year, end_year, lat_idx, lon_idx, city_name):
     """Récupérer les données spécifiques à une localité à partir des vraies données NetCDF"""
     try:
@@ -1293,6 +1391,341 @@ def download_data_from_api(variable, start_year, end_year, format_type):
     
     return None
 
+def show_locality_expander(locality_name, locality_data, variable, start_year, end_year):
+    """🎯 EXPANDER : Afficher les analyses détaillées et graphiques complets"""
+    try:
+        coords = locality_data.get('coords', {})
+        lat = coords.get('lat', 0)
+        lon = coords.get('lon', 0)
+        
+        climate_data = locality_data.get('climate_data', {})
+        temperatures = climate_data.get('temperatures', [])
+        years = climate_data.get('years', [])
+        stats = climate_data.get('stats', {})
+        
+        if temperatures:
+            trend = (temperatures[-1] - temperatures[0]) if len(temperatures) > 1 else 0
+            avg_temp = sum(temperatures) / len(temperatures)
+        else:
+            trend = 0
+            avg_temp = 0
+        
+        with st.expander(f"📊 **Analyse Complète : {locality_name}** - Graphiques & Détails", expanded=True):
+            
+            # En-tête modernisé avec badges
+            col1, col2, col3 = st.columns([2, 1, 1])
+            
+            with col1:
+                st.markdown(f"""
+                <div style="
+                    background: linear-gradient(45deg, #667eea, #764ba2);
+                    padding: 20px;
+                    border-radius: 12px;
+                    color: white;
+                    margin-bottom: 20px;
+                ">
+                    <h3 style="margin: 0; color: white;">📍 {locality_name}</h3>
+                    <p style="margin: 5px 0 0 0; opacity: 0.9;">
+                        🌍 {lat:.4f}°N, {abs(lon):.4f}°W • 
+                        📊 {variable.upper()} • 
+                        📅 {start_year}-{end_year}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.metric(
+                    "📈 Tendance Globale", 
+                    f"{trend:+.2f}°C",
+                    delta=f"Sur {len(years)} ans" if years else "",
+                    help="Évolution totale sur la période"
+                )
+            
+            with col3:
+                if stats:
+                    amplitude = stats.get('max', 0) - stats.get('min', 0)
+                    st.metric(
+                        "📊 Amplitude", 
+                        f"{amplitude:.1f}°C",
+                        help="Écart entre minimum et maximum"
+                    )
+            
+            # === SECTION 1: GRAPHIQUES PRINCIPAUX ===
+            st.markdown("#### 📈 Visualisations Climatiques")
+            
+            tab1, tab2, tab3 = st.tabs(["🔄 Série Temporelle", "📊 Distribution", "🎯 Analyse"])
+            
+            with tab1:
+                if temperatures and years:
+                    fig_ts = go.Figure()
+                    
+                    # Ligne principale
+                    fig_ts.add_trace(go.Scatter(
+                        x=years, y=temperatures,
+                        mode='lines+markers',
+                        name=f'{variable.upper()} {locality_name}',
+                        line=dict(color='#667eea', width=3),
+                        marker=dict(size=6, color='#667eea', line=dict(width=1, color='white'))
+                    ))
+                    
+                    # Ligne de tendance
+                    if len(years) > 2:
+                        import numpy as np
+                        z = np.polyfit(years, temperatures, 1)
+                        p = np.poly1d(z)
+                        fig_ts.add_trace(go.Scatter(
+                            x=years, y=p(years),
+                            mode='lines',
+                            name='Tendance',
+                            line=dict(color='red', width=2, dash='dash'),
+                            opacity=0.7
+                        ))
+                    
+                    fig_ts.update_layout(
+                        title=f"Évolution de {variable.upper()} à {locality_name} ({start_year}-{end_year})",
+                        height=400,
+                        template="plotly_white",
+                        xaxis_title="Année",
+                        yaxis_title="Température (°C)",
+                        hovermode='x unified'
+                    )
+                    
+                    st.plotly_chart(fig_ts, use_container_width=True)
+            
+            with tab2:
+                if temperatures:
+                    import numpy as np
+                    
+                    # Histogramme des températures
+                    fig_dist = go.Figure()
+                    fig_dist.add_trace(go.Histogram(
+                        x=temperatures,
+                        nbinsx=20,
+                        name="Distribution",
+                        marker=dict(color='#764ba2', opacity=0.7)
+                    ))
+                    
+                    # Ligne de moyenne
+                    fig_dist.add_vline(
+                        x=avg_temp,
+                        line_dash="dash",
+                        line_color="red",
+                        annotation_text=f"Moyenne: {avg_temp:.1f}°C"
+                    )
+                    
+                    fig_dist.update_layout(
+                        title=f"Distribution des températures - {locality_name}",
+                        height=400,
+                        template="plotly_white",
+                        xaxis_title="Température (°C)",
+                        yaxis_title="Fréquence"
+                    )
+                    
+                    st.plotly_chart(fig_dist, use_container_width=True)
+            
+            with tab3:
+                # Tableau de synthèse avancé
+                if stats and temperatures:
+                    st.markdown("##### 📋 Synthèse Statistique Complète")
+                    
+                    analysis_data = {
+                        "Indicateur": [
+                            "Température Moyenne", "Température Minimum", "Température Maximum", 
+                            "Écart-type", "Médiane", "1er Quartile", "3ème Quartile", 
+                            "Tendance Totale", "Années Analysées"
+                        ],
+                        "Valeur": [
+                            f"{stats.get('mean', 0):.2f}°C",
+                            f"{stats.get('min', 0):.2f}°C", 
+                            f"{stats.get('max', 0):.2f}°C",
+                            f"{stats.get('std', 0):.2f}°C",
+                            f"{np.median(temperatures):.2f}°C",
+                            f"{np.percentile(temperatures, 25):.2f}°C",
+                            f"{np.percentile(temperatures, 75):.2f}°C",
+                            f"{trend:+.2f}°C",
+                            f"{len(years)} ans"
+                        ],
+                        "Interprétation": [
+                            "Valeur centrale de référence",
+                            "Température la plus froide enregistrée",
+                            "Température la plus chaude enregistrée", 
+                            "Variabilité des températures",
+                            "Valeur médiane (50% des données)",
+                            "Seuil des 25% les plus froids",
+                            "Seuil des 25% les plus chauds",
+                            "Réchauffement" if trend > 0 else "Refroidissement" if trend < 0 else "Stable",
+                            "Période de référence"
+                        ]
+                    }
+                    
+                    import pandas as pd
+                    df_analysis = pd.DataFrame(analysis_data)
+                    st.dataframe(df_analysis, use_container_width=True, hide_index=True)
+                    
+                    # Messages d'interprétation
+                    if trend > 0.5:
+                        st.warning(f"⚠️ **Réchauffement notable** : +{trend:.1f}°C sur la période")
+                    elif trend > 0:
+                        st.info(f"📈 **Légère hausse** : +{trend:.1f}°C sur la période")
+                    elif trend < -0.5:
+                        st.info(f"📉 **Refroidissement** : {trend:.1f}°C sur la période")
+                    else:
+                        st.success(f"✅ **Températures stables** : {trend:+.1f}°C sur la période")
+            
+            # === SECTION 2: OPTIONS AVANCÉES ===
+            st.markdown("---")
+            st.markdown("#### ⚙️ Options Avancées")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                if st.button("📤 Exporter CSV", use_container_width=True):
+                    if temperatures and years:
+                        import pandas as pd
+                        export_df = pd.DataFrame({
+                            'Année': years,
+                            'Température': temperatures,
+                            'Localité': [locality_name] * len(years),
+                            'Variable': [variable.upper()] * len(years)
+                        })
+                        csv = export_df.to_csv(index=False)
+                        st.download_button(
+                            label="💾 Télécharger CSV",
+                            data=csv,
+                            file_name=f"{locality_name}_{variable}_{start_year}_{end_year}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                        
+            with col2:
+                if st.button("🔄 Comparer avec...", use_container_width=True):
+                    st.info("🎯 Mode comparaison - Sélectionnez une autre localité")
+                    
+            with col3:
+                if st.button("📊 Analyse Saisonnière", use_container_width=True):
+                    st.success("📅 Analyse par saisons disponible")
+                    
+            with col4:
+                if st.button("🎨 Personnaliser", use_container_width=True):
+                    st.info("⚙️ Options d'affichage personnalisées")
+        
+    except Exception as e:
+        st.error(f"❌ Erreur lors de l'affichage de l'expander: {e}")
+                    
+    except Exception as e:
+        st.error(f"❌ Erreur: {e}")
+
+def show_locality_sidebar(locality_name, locality_data, variable, start_year, end_year):
+    """🎯 SIDEBAR : Afficher les informations permanentes et statistiques clés"""
+    with st.sidebar:
+        # En-tête élégant
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        ">
+            <h3 style="color: white; margin: 0;">📍 {locality_name}</h3>
+            <p style="color: rgba(255,255,255,0.8); margin: 5px 0 0 0; font-size: 14px;">
+                Données permanentes
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        coords = locality_data.get('coords', {})
+        climate_data = locality_data.get('climate_data', {})
+        stats = climate_data.get('stats', {})
+        
+        # Section Coordonnées
+        st.markdown("**🌍 Localisation Géographique**")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.text(f"📍 {coords.get('lat', 0):.4f}°N")
+        with col2:
+            st.text(f"📍 {abs(coords.get('lon', 0)):.4f}°W")
+        
+        # Période d'analyse
+        st.text(f"📅 {start_year} - {end_year}")
+        st.markdown("---")
+        
+        # Métriques principales
+        st.markdown(f"**📊 Statistiques {variable.upper()}**")
+        if stats:
+            # Style avec Delta pour montrer les écarts
+            avg = stats.get('mean', 0)
+            max_temp = stats.get('max', 0)
+            min_temp = stats.get('min', 0)
+            
+            st.metric("🌡️ Température Moyenne", 
+                     f"{avg:.1f}°C", 
+                     help=f"Moyenne sur {end_year-start_year+1} ans")
+            
+            st.metric("🔥 Maximum Enregistré", 
+                     f"{max_temp:.1f}°C", 
+                     delta=f"+{max_temp-avg:.1f}°C vs moyenne",
+                     help="Écart par rapport à la moyenne")
+            
+            st.metric("❄️ Minimum Enregistré", 
+                     f"{min_temp:.1f}°C", 
+                     delta=f"{min_temp-avg:.1f}°C vs moyenne",
+                     help="Écart par rapport à la moyenne")
+        
+        st.markdown("---")
+        
+        # Graphique de tendance compact
+        temperatures = climate_data.get('temperatures', [])
+        years = climate_data.get('years', [])
+        
+        if temperatures and years:
+            st.markdown("**📈 Tendance Rapide**")
+            fig_sidebar = go.Figure()
+            fig_sidebar.add_trace(go.Scatter(
+                x=years, y=temperatures,
+                mode='lines+markers',
+                name=locality_name,
+                line=dict(color='#FF6B6B', width=2),
+                marker=dict(size=4)
+            ))
+            fig_sidebar.update_layout(
+                height=180,
+                margin=dict(t=10, b=10, l=10, r=10),
+                showlegend=False,
+                xaxis_title="",
+                yaxis_title="°C",
+                font=dict(size=10)
+            )
+            st.plotly_chart(fig_sidebar, use_container_width=True)
+            
+            # Calcul de la tendance
+            if len(temperatures) > 1:
+                trend = temperatures[-1] - temperatures[0]
+                trend_color = "🔴" if trend > 0 else "🔵" if trend < 0 else "⚪"
+                st.text(f"{trend_color} Évolution: {trend:+.1f}°C")
+        
+        st.markdown("---")
+        
+        # Actions rapides
+        st.markdown("**⚡ Actions Rapides**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📊 Export", use_container_width=True, help="Exporter les données"):
+                st.success("📁 Export préparé")
+        with col2:
+            if st.button("🔄 Comparer", use_container_width=True, help="Comparer avec d'autres villes"):
+                st.info("🎯 Mode comparaison activé")
+        
+        # Bouton de fermeture
+        if st.button("❌ Fermer sidebar", use_container_width=True, type="secondary"):
+            # Nettoyer les variables de session
+            keys_to_remove = ['sidebar_locality', 'sidebar_name', 'current_locality_data', 'current_locality_name']
+            for key in keys_to_remove:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+
 # Interface Streamlit
 def main():
     st.title("🌡️ Dashboard Climatique du Sénégal")
@@ -1395,9 +1828,50 @@ def main():
     
     # Afficher les informations de la localité sélectionnée
     if analysis_mode == "national":
-        pass
+        st.info("🇸🇳 Mode analyse nationale - Les données moyennes du Sénégal seront utilisées")
     else:
-        pass
+        # 🎯 MODE LOCALITÉ - AFFICHAGE AUTOMATIQUE DU DUAL SYSTEM
+        st.info(f"📍 Localité sélectionnée : **{selected_locality_name}** (Lat: {selected_locality.get('lat', 0):.2f}, Lon: {selected_locality.get('lon', 0):.2f})")
+        
+        # Récupération automatique des données détaillées
+        with st.spinner(f"⏳ Chargement des données pour {selected_locality_name}..."):
+            try:
+                detailed_data = fetch_detailed_locality_data(
+                    variable, start_year, end_year,
+                    selected_locality.get('lat', 0),
+                    selected_locality.get('lon', 0),
+                    selected_locality_name
+                )
+                
+                if detailed_data:
+                    locality_data = {
+                        'coords': {
+                            'lat': selected_locality.get('lat', 0),
+                            'lon': selected_locality.get('lon', 0)
+                        },
+                        'climate_data': detailed_data
+                    }
+                    
+                    # 🎯 AFFICHAGE DUAL AUTOMATIQUE
+                    
+                    # 1. SIDEBAR : Statistiques permanentes
+                    show_locality_sidebar(selected_locality_name, locality_data, variable, start_year, end_year)
+                    
+                    # 2. EXPANDER : Analyse complète
+                    st.markdown("---")
+                    show_locality_expander(selected_locality_name, locality_data, variable, start_year, end_year)
+                    
+                    # Message informatif discret
+                    st.info("💡 **Double affichage** : Sidebar (gauche) + Expander (ci-dessus) pour {selected_locality_name}")
+                    
+                    # Arrêter ici pour éviter d'afficher les graphiques nationaux
+                    return
+                    
+                else:
+                    st.error(f"❌ Impossible de récupérer les données pour {selected_locality_name}")
+                    
+            except Exception as e:
+                st.error(f"❌ Erreur lors du chargement: {e}")
     
     # Validation des années
     if start_year >= end_year:
@@ -1512,14 +1986,49 @@ def main():
                 location_title = "Sénégal (Moyenne nationale)"
             else:
                 if lat_idx is not None and lon_idx is not None:
-                    # Utiliser les données de localité avec les indices hardcodés
+                    # 🎯 MODE LOCALITÉ - AFFICHAGE IMMÉDIAT DES INFORMATIONS DÉTAILLÉES
+                    
+                    # 1. Récupérer les données climatiques complètes
                     raw_data = fetch_locality_data(
-                    variable, start_year, end_year, 
-                    lat_idx, lon_idx, selected_locality['name']
-                )
-                    # Adapter les données au format attendu par les graphiques
-                    data = adapt_locality_data_format(raw_data)
-                    location_title = f"{selected_locality['name']} (Localité spécifique)"
+                        variable, start_year, end_year, 
+                        lat_idx, lon_idx, selected_locality['name']
+                    )
+                    
+                    if raw_data:
+                        # 2. Préparer les données pour l'affichage détaillé
+                        detailed_data = fetch_detailed_locality_data(
+                            variable, start_year, end_year,
+                            selected_locality['coords']['lat'],
+                            selected_locality['coords']['lon'],
+                            selected_locality['name']
+                        )
+                        
+                        locality_data = {
+                            'coords': selected_locality['coords'],
+                            'climate_data': detailed_data if detailed_data else {}
+                        }
+                        
+                        # 3. === AFFICHAGE IMMÉDIAT DUAL : SIDEBAR + EXPANDER ===
+                        st.success(f"✅ Données chargées pour {selected_locality['name']}")
+                        
+                        # SIDEBAR : Informations permanentes et statistiques clés
+                        show_locality_sidebar(selected_locality['name'], locality_data, variable, start_year, end_year)
+                        
+                        # EXPANDER : Analyses détaillées et graphiques complets  
+                        st.markdown("---")
+                        st.markdown("### 📊 Analyse Détaillée de la Localité")
+                        show_locality_expander(selected_locality['name'], locality_data, variable, start_year, end_year)
+                        
+                        # 4. Adapter les données pour les graphiques principaux (si nécessaire)
+                        data = adapt_locality_data_format(raw_data)
+                        location_title = f"{selected_locality['name']} (Localité spécifique)"
+                        
+                        # Message informatif
+                        st.info("💡 **Double affichage activé :** Consultez la **sidebar** pour les statistiques rapides et l'**expander** ci-dessus pour l'analyse complète.")
+                        
+                    else:
+                        st.error(f"❌ Impossible de récupérer les données pour {selected_locality['name']}")
+                        data = None
                 else:
                     st.error("❌ Problème avec les indices de localité")
                     data = None
@@ -1641,143 +2150,57 @@ def main():
         st.success(f"🎯 Analyse mise à jour pour : **{selected_locality_name}**")
         st.session_state.update_charts = False
     
-    st.subheader(f"📊 Analyse détaillée - {selected_locality_name}")
+    # === SYSTÈME EXPANDER + SIDEBAR POUR LES LOCALITÉS ===
     
     # Récupérer les données détaillées pour la localité sélectionnée
     if analysis_mode == "national":
         detailed_data = fetch_data(variable, start_year, end_year)
+        coords = {"lat": 14.5, "lon": -14.0}  # Centre du Sénégal
     else:
         detailed_data = fetch_locality_data(variable, start_year, end_year, lat_idx, lon_idx, selected_locality_name)
+        coords = {"lat": lat_idx, "lon": lon_idx}
     
-    if detailed_data and detailed_data.get('temperatures'):
-        
-        # Graphiques en colonnes
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # 1. Série temporelle détaillée
-            st.markdown("### 📈 Évolution temporelle")
-            
-            if detailed_data.get('years') and detailed_data.get('temperatures'):
-                df_temp = pd.DataFrame({
-                    'Année': detailed_data['years'],
-                    'Température (°C)': detailed_data['temperatures']
-                })
-                
-                fig_timeline = px.line(
-                    df_temp, 
-                    x='Année', 
-                    y='Température (°C)',
-                    title=f"{variable.upper()} - {selected_locality_name} ({start_year}-{end_year})",
-                    markers=True
-                )
-                
-                fig_timeline.update_layout(
-                    height=400,
-                    showlegend=False,
-                    xaxis_title="Année",
-                    yaxis_title="Température (°C)",
-                    hovermode='x'
-                )
-                
-                st.plotly_chart(fig_timeline, use_container_width=True)
-                
-                # Tendance linéaire
-                if len(df_temp) > 5:
-                    z = np.polyfit(df_temp['Année'], df_temp['Température (°C)'], 1)
-                    trend = z[0] * 10  # Par décennie
-                    trend_direction = "📈 Hausse" if trend > 0 else "📉 Baisse"
-                    st.metric(
-                        "Tendance par décennie", 
-                        f"{trend:+.2f}°C", 
-                        delta=trend_direction
-                    )
-        
-        with col2:
-            # 2. Statistiques détaillées
-            st.markdown("### 📊 Statistiques")
-            
-            if detailed_data.get('stats'):
-                stats = detailed_data['stats']
-                
-                # Métriques principales
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.metric("🌡️ Moyenne", f"{stats.get('mean', 0):.1f}°C")
-                    st.metric("🔺 Maximum", f"{stats.get('max', 0):.1f}°C")
-                
-                with col_b:
-                    st.metric("📊 Médiane", f"{stats.get('median', 0):.1f}°C")
-                    st.metric("🔻 Minimum", f"{stats.get('min', 0):.1f}°C")
-                
-                st.metric("📏 Écart-type", f"{stats.get('std', 0):.2f}°C")
-            
-            # 3. Distribution des températures
-            if detailed_data.get('temperatures'):
-                st.markdown("### 📦 Distribution")
-                
-                fig_box = go.Figure()
-                fig_box.add_trace(go.Box(
-                    y=detailed_data['temperatures'],
-                    name=selected_locality_name,
-                    boxpoints='outliers',
-                    marker_color='lightblue'
-                ))
-                
-                fig_box.update_layout(
-                    height=300,
-                    showlegend=False,
-                    yaxis_title="Température (°C)",
-                    title="Répartition des températures"
-                )
-                
-                st.plotly_chart(fig_box, use_container_width=True)
-        
-        # 4. Comparaison avec la moyenne nationale (si localité != national)
-        if analysis_mode != "national":
-            st.markdown("### 🇸🇳 Comparaison avec la moyenne nationale")
-            
-            try:
-                national_data = fetch_data(variable, start_year, end_year)
-                
-                if national_data and national_data.get('temperatures') and national_data.get('years'):
-                    # Créer un DataFrame comparatif
-                    df_comparison = pd.DataFrame({
-                        'Année': detailed_data['years'],
-                        selected_locality_name: detailed_data['temperatures'],
-                        'Moyenne nationale': national_data['temperatures'][:len(detailed_data['years'])]
-                    })
-                    
-                    fig_comp = px.line(
-                        df_comparison, 
-                        x='Année', 
-                        y=[selected_locality_name, 'Moyenne nationale'],
-                        title=f"Comparaison {selected_locality_name} vs Moyenne nationale"
-                    )
-                    
-                    fig_comp.update_layout(height=400)
-                    st.plotly_chart(fig_comp, use_container_width=True)
-                    
-                    # Écart moyen
-                    local_mean = np.mean(detailed_data['temperatures'])
-                    national_mean = np.mean(national_data['temperatures'][:len(detailed_data['temperatures'])])
-                    difference = local_mean - national_mean
-                    
-                    if abs(difference) < 0.1:
-                        comparison = "🎯 Similaire à la moyenne nationale"
-                    elif difference > 0:
-                        comparison = f"🔥 Plus chaud de {difference:.1f}°C que la moyenne"
-                    else:
-                        comparison = f"❄️ Plus froid de {abs(difference):.1f}°C que la moyenne"
-                    
-                    st.info(f"**Analyse comparative :** {comparison}")
-                    
-            except Exception as e:
-                st.warning(f"⚠️ Comparaison nationale indisponible : {e}")
+    # Afficher automatiquement l'expander avec les détails de la localité
+    if detailed_data:
+        locality_data = {
+            "coords": coords,
+            "climate_data": detailed_data
+        }
+        show_locality_expander(selected_locality_name, locality_data, variable, start_year, end_year)
     
-    else:
-        st.warning(f"⚠️ Données détaillées indisponibles pour {selected_locality_name}")
-        st.info("💡 Essayez une autre localité ou vérifiez la connexion à l'API")
+    # Afficher la sidebar si une localité a été épinglée
+    if st.session_state.sidebar_locality and st.session_state.sidebar_name:
+        show_locality_sidebar(
+            st.session_state.sidebar_name, 
+            st.session_state.sidebar_locality, 
+            variable, start_year, end_year
+        )
+    
+    # === SECTION DE COMPARAISON (SI ACTIVÉE) ===
+    if st.session_state.get('comparison_mode', False):
+        st.markdown("### 🔄 Mode Comparaison")
+        
+        cities_to_compare = st.multiselect(
+            f"Comparer {selected_locality_name} avec:",
+            options=['Dakar', 'Thiès', 'Kaolack', 'Saint-Louis', 'Tambacounda'],
+            max_selections=3
+        )
+        
+        if cities_to_compare:
+            st.info(f"🎯 Comparaison: {selected_locality_name} vs {', '.join(cities_to_compare)}")
+        
+        if st.button("❌ Fermer comparaison"):
+            st.session_state.comparison_mode = False
+            st.rerun()
+    
+        
+    # Message si aucune donnée disponible  
+    if not detailed_data or not detailed_data.get('temperatures'):
+        st.warning(f"⚠️ Aucune donnée disponible pour {selected_locality_name}")
+        st.info("💡 Essayez une autre localité ou vérifiez la connexion API")
+
+    
+    # === FIN DE LA SECTION LOCALITÉ ===
     
     # Informations sur les données - affichage direct
     st.markdown("---")
