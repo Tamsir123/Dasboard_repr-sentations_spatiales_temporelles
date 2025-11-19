@@ -1102,6 +1102,77 @@ def create_spatial_map(variable, data):
     
     return fig
 
+def create_climate_heatmap(variable, start_year, end_year):
+    """Créer une heatmap climatique du Sénégal avec leafmap"""
+    try:
+        # Récupérer les données climatiques des villes principales
+        cities_climate = get_cities_climate_data(variable, start_year, end_year)
+        
+        if not cities_climate:
+            return None
+        
+        # Créer un DataFrame avec les données climatiques
+        df_data = []
+        for city_data in cities_climate:
+            df_data.append({
+                'city': city_data['city'],
+                'latitude': city_data['lat'],
+                'longitude': city_data['lon'],
+                'temperature': city_data['temperature']
+            })
+        
+        if not df_data:
+            return None
+            
+        df = pd.DataFrame(df_data)
+        
+        # Créer la carte leafmap centrée sur le Sénégal
+        m = leafmap.Map(center=[14.5, -14.5], zoom=7)
+        
+        # Créer un fichier temporaire pour les données CSV
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            df.to_csv(f.name, index=False)
+            temp_csv_path = f.name
+        
+        # Ajouter la heatmap
+        m.add_heatmap(
+            temp_csv_path,
+            latitude="latitude",
+            longitude="longitude", 
+            value="temperature",
+            name=f"Heatmap {variable.upper()}",
+            radius=30,
+            blur=20,
+            min_opacity=0.4,
+            max_zoom=18,
+            gradient={
+                0.4: '#3b82f6' if variable == 'tasmin' else '#fbbf24',
+                0.6: '#06b6d4' if variable == 'tasmin' else '#f97316', 
+                0.8: '#10b981' if variable == 'tasmin' else '#ef4444',
+                1.0: '#059669' if variable == 'tasmin' else '#dc2626'
+            }
+        )
+        
+        # Ajouter des marqueurs pour les villes
+        for _, row in df.iterrows():
+            m.add_marker(
+                location=[row['latitude'], row['longitude']],
+                popup=f"{row['city']}<br>{row['temperature']}°C",
+                tooltip=f"{row['city']}: {row['temperature']}°C"
+            )
+        
+        # Nettoyer le fichier temporaire
+        try:
+            os.unlink(temp_csv_path)
+        except:
+            pass
+        
+        return m
+        
+    except Exception as e:
+        st.error(f"Erreur lors de la création de la heatmap: {e}")
+        return None
+
 @st.cache_data(ttl=600)  # Cache pendant 10 minutes
 def download_data_from_api(variable, start_year, end_year, format_type):
     """Télécharge les données depuis l'API avec retry pour gérer les erreurs 502"""
@@ -1189,12 +1260,22 @@ def show_locality_expander(locality_name, locality_data, variable, start_year, e
             # Affichage du graphique série temporelle
             if temperatures and years:
                 st.subheader("📈 Série Temporelle")
+                
+                # Couleur selon la variable climatique
+                if variable == "tasmin":
+                    line_color = '#3b82f6'  # Bleu pour températures minimales
+                    var_label = "Température minimale"
+                else:
+                    line_color = '#ef4444'  # Rouge pour températures maximales
+                    var_label = "Température maximale"
+                
                 fig_ts = go.Figure()
                 fig_ts.add_trace(go.Scatter(
                     x=years, y=temperatures,
                     mode='lines+markers',
-                    name=locality_name,
-                    line=dict(color='#667eea', width=2)
+                    name=f"{var_label} - {locality_name}",
+                    line=dict(color=line_color, width=3),
+                    marker=dict(size=6, color=line_color)
                 ))
                 
                 fig_ts.update_layout(
@@ -1724,6 +1805,20 @@ def main():
                 st.error("❌ Impossible de charger les données spatiales")
         except Exception as e:
             st.error(f"❌ Erreur lors du chargement des données spatiales: {e}")
+
+    # Section Heatmap pour l'analyse nationale
+    if analysis_mode == "national":
+        st.markdown("---")
+        st.subheader("🔥 Heatmap Climatique du Sénégal")
+        
+        with st.spinner("Génération de la heatmap..."):
+            heatmap = create_climate_heatmap(variable, start_year, end_year)
+            
+            if heatmap:
+                st.markdown(f"**Heatmap des températures {variable.upper()} ({start_year}-{end_year})**")
+                heatmap.to_streamlit(height=600)
+            else:
+                st.warning("⚠️ Impossible de générer la heatmap. Vérifiez que les données sont disponibles.")
     
 
     
