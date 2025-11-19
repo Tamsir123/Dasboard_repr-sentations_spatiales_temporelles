@@ -313,6 +313,265 @@ def extract_national_data_for_city(variable, start_year, end_year, lat, lon):
 # Fonction heatmap supprimée - plus d'affichage cartographique
 
 @st.cache_data(ttl=300)
+        
+        # Récupérer les données pour les villes
+        cities_data = get_cities_climate_data(variable, start_year, end_year)
+        
+        if not cities_data:
+            return None
+        
+        # Créer une carte centrée sur le Sénégal
+        m = leafmap.Map(center=[14.5, -14.5], zoom=7)
+        
+        # Calculer l'échelle dynamique des températures
+        temperatures = [city['temperature'] for city in cities_data]
+        min_temp, max_temp = min(temperatures), max(temperatures)
+        
+
+        
+        # Définir une palette de couleurs plus précise
+        def get_color(temperature, min_val, max_val):
+            """Calculer la couleur en fonction de la température"""
+            if max_val == min_val:
+                return '#ffcc00'
+            
+            normalized = (temperature - min_val) / (max_val - min_val)
+            
+            # Palette de couleurs thermique plus nuancée
+            if normalized < 0.1:
+                return '#000080'  # Bleu foncé
+            elif normalized < 0.25:
+                return '#0066cc'  # Bleu
+            elif normalized < 0.4:
+                return '#00cccc'  # Cyan
+            elif normalized < 0.55:
+                return '#00ff00'  # Vert
+            elif normalized < 0.7:
+                return '#ffff00'  # Jaune
+            elif normalized < 0.85:
+                return '#ff9900'  # Orange
+            else:
+                return '#ff0000'  # Rouge
+        
+        # Définir les délimitations approximatives des régions sénégalaises
+        def create_region_polygon(city_name, lat, lon):
+            """Créer un polygone approximatif pour représenter la région d'une ville"""
+            
+            # Délimitations basées sur les divisions administratives du Sénégal
+            region_polygons = {
+                'Dakar': [
+                    [14.6, -17.5], [14.8, -17.5], [14.8, -17.3], [14.7, -17.2], 
+                    [14.6, -17.2], [14.5, -17.3], [14.5, -17.4], [14.6, -17.5]
+                ],
+                'Thiès': [
+                    [14.6, -17.2], [15.0, -17.0], [15.1, -16.7], [14.9, -16.5], 
+                    [14.7, -16.6], [14.5, -16.8], [14.6, -17.2]
+                ],
+                'Kaolack': [
+                    [13.8, -16.5], [14.4, -16.3], [14.5, -15.8], [14.2, -15.5], 
+                    [13.9, -15.7], [13.7, -16.0], [13.8, -16.5]
+                ],
+                'Saint-Louis': [
+                    [15.8, -16.8], [16.2, -16.7], [16.3, -16.3], [16.1, -16.0], 
+                    [15.8, -16.1], [15.6, -16.4], [15.8, -16.8]
+                ],
+                'Tambacounda': [
+                    [13.2, -14.2], [14.2, -13.8], [14.4, -12.8], [14.0, -12.5], 
+                    [13.3, -13.0], [12.8, -13.8], [13.2, -14.2]
+                ],
+                'Ziguinchor': [
+                    [12.2, -16.8], [12.8, -16.5], [12.9, -15.8], [12.6, -15.5], 
+                    [12.3, -15.7], [12.1, -16.2], [12.2, -16.8]
+                ],
+                'Diourbel': [
+                    [14.2, -16.8], [14.9, -16.6], [15.0, -16.0], [14.6, -15.8], 
+                    [14.3, -16.0], [14.1, -16.4], [14.2, -16.8]
+                ],
+                'Louga': [
+                    [15.1, -17.0], [15.8, -16.8], [16.0, -16.0], [15.7, -15.7], 
+                    [15.2, -15.8], [15.0, -16.3], [15.1, -17.0]
+                ],
+                'Fatick': [
+                    [13.8, -17.0], [14.5, -16.8], [14.6, -16.2], [14.2, -15.9], 
+                    [13.9, -16.1], [13.7, -16.6], [13.8, -17.0]
+                ],
+                'Kolda': [
+                    [12.4, -15.5], [13.2, -15.0], [13.4, -14.2], [13.0, -13.8], 
+                    [12.5, -14.2], [12.2, -14.8], [12.4, -15.5]
+                ],
+                'Matam': [
+                    [15.0, -14.0], [16.0, -13.5], [16.2, -12.8], [15.8, -12.5], 
+                    [15.2, -12.8], [14.8, -13.5], [15.0, -14.0]
+                ],
+                'Kaffrine': [
+                    [13.6, -16.0], [14.4, -15.8], [14.6, -15.2], [14.2, -14.8], 
+                    [13.8, -15.0], [13.5, -15.6], [13.6, -16.0]
+                ],
+                'Kédougou': [
+                    [12.0, -13.0], [12.8, -12.5], [13.0, -11.8], [12.7, -11.5], 
+                    [12.2, -11.8], [11.9, -12.5], [12.0, -13.0]
+                ],
+                'Sédhiou': [
+                    [12.2, -16.0], [12.9, -15.8], [13.1, -15.2], [12.8, -14.8], 
+                    [12.4, -15.0], [12.1, -15.6], [12.2, -16.0]
+                ],
+                'Mbour': [
+                    [14.0, -17.2], [14.6, -17.0], [14.7, -16.6], [14.4, -16.4], 
+                    [14.1, -16.6], [13.9, -16.9], [14.0, -17.2]
+                ]
+            }
+            
+            # Si la ville a une délimitation prédéfinie, l'utiliser
+            if city_name in region_polygons:
+                return region_polygons[city_name]
+            
+            # Sinon, créer un polygone rectangulaire autour de la ville
+            offset = 0.3  # Environ 30 km
+            return [
+                [lat - offset, lon - offset],
+                [lat + offset, lon - offset], 
+                [lat + offset, lon + offset],
+                [lat - offset, lon + offset],
+                [lat - offset, lon - offset]
+            ]
+        
+        # Ajouter des marqueurs colorés pour chaque ville (sans polygones)
+        for city in cities_data:
+            color = get_color(city['temperature'], min_temp, max_temp)
+            
+            # Définir la couleur du marqueur selon la température
+            if city['temperature'] <= min_temp + 0.25 * (max_temp - min_temp):
+                marker_color = 'blue'
+            elif city['temperature'] <= min_temp + 0.5 * (max_temp - min_temp):
+                marker_color = 'green'
+            elif city['temperature'] <= min_temp + 0.75 * (max_temp - min_temp):
+                marker_color = 'orange'
+            else:
+                marker_color = 'red'
+            
+            # Ajouter un marqueur interactif pour la ville
+            folium_marker = folium.Marker(
+                location=[city['lat'], city['lon']],
+                popup=f"""<div style="font-family: Arial, sans-serif; text-align: center; min-width: 200px;">
+                         <h3 style="margin: 0; color: #2E86AB;">🏙️ {city['city']}</h3>
+                         <hr style="margin: 5px 0;">
+                         <p style="margin: 5px 0; font-size: 18px; font-weight: bold; color: {color};">
+                             🌡️ {city['temperature']:.1f}°C
+                         </p>
+                         <p style="margin: 2px 0; font-size: 12px; color: #666;">
+                             Variable: {variable.upper()}<br>
+                             Période: {start_year}-{end_year}<br>
+                             Coordonnées: {city['lat']:.2f}°N, {abs(city['lon']):.2f}°W
+                         </p>
+                         <button onclick="selectLocality('{city['city']}')" 
+                                 style="background: {color}; color: white; border: none; 
+                                        padding: 8px 15px; border-radius: 5px; margin-top: 10px; 
+                                        cursor: pointer; font-weight: bold;">
+                             📊 Analyser {city['city']}
+                         </button>
+                         </div>""",
+                tooltip=f"🎯 {city['city']}: {city['temperature']:.1f}°C - Cliquer pour analyser",
+                icon=folium.Icon(
+                    color=marker_color, 
+                    icon='thermometer-half', 
+                    prefix='fa'
+                )
+            )
+            folium_marker.add_to(m)
+        
+        # Ajouter une légende de couleurs
+        legend_html = f"""
+        <div style="position: fixed; 
+                    bottom: 50px; right: 50px; width: 200px; height: 180px; 
+                    background-color: white; border:2px solid grey; z-index:9999; 
+                    font-size:12px; padding: 10px; border-radius: 5px;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+        <h4 style="margin: 0 0 10px 0; text-align: center;">Échelle {variable.upper()}</h4>
+        <div style="margin-bottom: 5px;">
+            <span style="background-color: #000080; width: 20px; height: 15px; display: inline-block; margin-right: 8px;"></span>
+            Très froid (&lt; {min_temp + 0.1 * (max_temp - min_temp):.1f}°C)
+        </div>
+        <div style="margin-bottom: 5px;">
+            <span style="background-color: #0066cc; width: 20px; height: 15px; display: inline-block; margin-right: 8px;"></span>
+            Froid ({min_temp + 0.1 * (max_temp - min_temp):.1f} - {min_temp + 0.25 * (max_temp - min_temp):.1f}°C)
+        </div>
+        <div style="margin-bottom: 5px;">
+            <span style="background-color: #00cccc; width: 20px; height: 15px; display: inline-block; margin-right: 8px;"></span>
+            Frais ({min_temp + 0.25 * (max_temp - min_temp):.1f} - {min_temp + 0.4 * (max_temp - min_temp):.1f}°C)
+        </div>
+        <div style="margin-bottom: 5px;">
+            <span style="background-color: #00ff00; width: 20px; height: 15px; display: inline-block; margin-right: 8px;"></span>
+            Modéré ({min_temp + 0.4 * (max_temp - min_temp):.1f} - {min_temp + 0.55 * (max_temp - min_temp):.1f}°C)
+        </div>
+        <div style="margin-bottom: 5px;">
+            <span style="background-color: #ffff00; width: 20px; height: 15px; display: inline-block; margin-right: 8px;"></span>
+            Chaud ({min_temp + 0.55 * (max_temp - min_temp):.1f} - {min_temp + 0.7 * (max_temp - min_temp):.1f}°C)
+        </div>
+        <div style="margin-bottom: 5px;">
+            <span style="background-color: #ff9900; width: 20px; height: 15px; display: inline-block; margin-right: 8px;"></span>
+            Très chaud ({min_temp + 0.7 * (max_temp - min_temp):.1f} - {min_temp + 0.85 * (max_temp - min_temp):.1f}°C)
+        </div>
+        <div style="margin-bottom: 5px;">
+            <span style="background-color: #ff0000; width: 20px; height: 15px; display: inline-block; margin-right: 8px;"></span>
+            Extrême (&gt; {min_temp + 0.85 * (max_temp - min_temp):.1f}°C)
+        </div>
+        </div>
+        """
+        
+        m.get_root().html.add_child(folium.Element(legend_html))
+        
+        # Ajouter JavaScript pour l'interactivité avec Streamlit
+        js_code = """
+        <script>
+        function selectLocality(locality) {
+            // Stocker la localité sélectionnée dans le localStorage
+            localStorage.setItem('selected_locality', locality);
+            
+            // Déclencher un événement personnalisé pour notifier Streamlit
+            window.parent.postMessage({
+                type: 'locality_selected',
+                locality: locality
+            }, '*');
+            
+            // Afficher un message de confirmation
+            alert('📊 Chargement des données pour ' + locality + '...');
+            
+            // Recharger la page pour mettre à jour les graphiques
+            window.parent.location.reload();
+        }
+        
+        // Écouter les clics sur les polygones
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ajouter des gestionnaires d'événements pour tous les polygones
+            setTimeout(function() {
+                var polygons = document.querySelectorAll('.leaflet-interactive');
+                polygons.forEach(function(polygon) {
+                    polygon.addEventListener('click', function(e) {
+                        // Extraire le nom de la localité du tooltip ou popup
+                        var popup = e.target.getPopup ? e.target.getPopup() : null;
+                        if (popup && popup.getContent) {
+                            var content = popup.getContent();
+                            var match = content.match(/Région de ([^<]+)/);
+                            if (match) {
+                                selectLocality(match[1]);
+                            }
+                        }
+                    });
+                });
+            }, 1000);
+        });
+        </script>
+        """
+        
+        m.get_root().html.add_child(folium.Element(js_code))
+        
+        return m
+        
+    except Exception as e:
+        st.error(f"❌ Erreur lors de la création de la heatmap: {e}")
+        return None
+
+@st.cache_data(ttl=300)
 def fetch_detailed_locality_data(variable, start_year, end_year, lat, lon, city_name):
     """Récupérer les données détaillées d'une localité pour l'affichage expander + sidebar"""
     try:
@@ -1627,7 +1886,30 @@ def main():
 
     
     # === FIN DE LA SECTION LOCALITÉ ===
-
+    
+    # Informations sur les données - affichage direct
+    st.markdown("---")
+    st.subheader("ℹ️ Informations sur les données")
+    
+    if data and data.get('stats'):
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Moyenne", f"{data['stats'].get('mean', 0):.2f}°C")
+        with col2:
+            st.metric("Minimum", f"{data['stats'].get('min', 0):.2f}°C")
+        with col3:
+            st.metric("Maximum", f"{data['stats'].get('max', 0):.2f}°C")
+        with col4:
+            st.metric("Écart-type", f"{data['stats'].get('std', 0):.2f}°C")
+        
+        st.markdown("### � Source des données")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info("🎯 **Fichiers:** `tasmin_daily_Senegal_1960_2024.nc` et `tasmax_daily_Senegal_1960_2024.nc`")
+        with col2:
+            st.info("📅 **Période:** 1960-2024 (données climatiques journalières)")
+        
+        st.success("🌍 **Région:** Sénégal, Afrique de l'Ouest")
 
 if __name__ == "__main__":
     main()
