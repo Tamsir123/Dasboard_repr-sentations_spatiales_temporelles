@@ -1392,6 +1392,10 @@ def download_data_from_api(variable, start_year, end_year, format_type):
     return None
 
 def show_locality_expander(locality_name, locality_data, variable, start_year, end_year):
+    # Ne pas afficher l'analyse complète pour la moyenne nationale
+    if locality_name == "Moyenne nationale" or "nationale" in locality_name.lower():
+        return
+        
     try:
         coords = locality_data.get('coords', {})
         climate_data = locality_data.get('climate_data', {})
