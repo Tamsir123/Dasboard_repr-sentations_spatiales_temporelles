@@ -1342,15 +1342,47 @@ def create_navigation_sidebar():
         
         selected_locality = next(loc for loc in localities_list if loc["name"] == selected_locality_name)
         
+        # Section Export
+        st.markdown("**📂 Export des données**")
         format_type = st.selectbox(
-            "Format export",
+            "Format",
             options=["csv", "netcdf"],
-            key="format_select"
+            key="format_select",
+            help="Choisir le format d'export"
         )
+        
+        if st.button("📥 Exporter les données", use_container_width=True, type="secondary"):
+            with st.spinner(f"Export en cours ({format_type.upper()})..."):
+                try:
+                    # Télécharger les données depuis l'API
+                    data_content = download_data_from_api(variable, start_year, end_year, format_type)
+                    
+                    if data_content:
+                        # Créer le nom du fichier
+                        if selected_locality_name == "Moyenne nationale":
+                            filename = f"senegal_{variable}_{start_year}_{end_year}.{format_type}"
+                        else:
+                            filename = f"{selected_locality_name.replace(' ', '_')}_{variable}_{start_year}_{end_year}.{format_type}"
+                        
+                        # Déterminer le type MIME
+                        mime_type = "text/csv" if format_type == "csv" else "application/x-netcdf"
+                        
+                        st.download_button(
+                            label=f"💾 Télécharger {format_type.upper()}",
+                            data=data_content,
+                            file_name=filename,
+                            mime=mime_type,
+                            use_container_width=True
+                        )
+                        st.success(f"✅ Données prêtes à télécharger ({len(data_content)} bytes)")
+                    else:
+                        st.error("❌ Erreur lors de l'export des données")
+                except Exception as e:
+                    st.error(f"❌ Erreur d'export: {str(e)}")
         
         st.markdown("---")
         
-        if st.button("Actualiser", use_container_width=True, type="primary"):
+        if st.button("🔄 Actualiser", use_container_width=True, type="primary"):
             for key in list(st.session_state.keys()):
                 if 'data' in key or 'loaded' in key:
                     del st.session_state[key]
