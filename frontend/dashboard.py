@@ -9,6 +9,7 @@ import json
 import tempfile
 import os
 import leafmap.foliumap as leafmap
+import base64
 from config import get_api_url, DEBUG_MODE
 
 # Configuration de la page
@@ -161,29 +162,37 @@ def check_api_health():
         print(f"Health check failed: {e}")
         return False
 
-# La fonction fetch_localities() n'est plus nécessaire avec notre liste hardcodée
+# Fonction pour récupérer les localités depuis l'API
+
+@st.cache_data(ttl=600)
+def get_available_localities_from_api():
+    """Récupérer toutes les localités disponibles depuis l'API backend"""
+    try:
+        if not check_api_health():
+            return None
+        
+        response = requests.get(f"{API_BASE_URL}/localities/extended", timeout=15)
+        
+        if response.status_code == 200:
+            localities_data = response.json()
+            return localities_data.get('cities', [])
+        else:
+            st.error(f"❌ Erreur API localités: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        st.error(f"❌ Erreur lors de la récupération des localités: {e}")
+        return None
 
 def get_cities_climate_data(variable, start_year, end_year):
-    """Récupérer les vraies données climatiques CSV via API pour les 15 villes principales"""
+    """Récupérer les vraies données climatiques pour toutes les localités disponibles"""
     try:
-        # Définir les 15 villes principales avec leurs coordonnées exactes
-        cities_data = [
-            ('Dakar', 14.693, -17.447),
-            ('Thiès', 14.789, -16.926),
-            ('Kaolack', 14.159, -16.073),
-            ('Ziguinchor', 12.583, -16.267),
-            ('Saint-Louis', 16.033, -16.500),
-            ('Tambacounda', 13.767, -13.668),
-            ('Diourbel', 14.660, -16.233),
-            ('Louga', 15.619, -16.228),
-            ('Fatick', 14.335, -16.407),
-            ('Kolda', 12.894, -14.942),
-            ('Matam', 15.655, -13.256),
-            ('Kaffrine', 14.106, -15.550),
-            ('Kédougou', 12.557, -12.176),
-            ('Sédhiou', 12.709, -15.557),
-            ('Mbour', 14.420, -16.969)
-        ]
+        # Récupérer dynamiquement les localités depuis l'API
+        cities_from_api = get_available_localities_from_api()
+        
+        if not cities_from_api:
+            st.error("❌ Impossible de récupérer les localités depuis l'API")
+            return []
         
         cities_climate = []
         
@@ -195,21 +204,14 @@ def get_cities_climate_data(variable, start_year, end_year):
         
         progress_bar = st.progress(0)
         
-        # Paramètres de la grille CSV (ex-NetCDF)
-        lat_min, lat_max = 12.0, 17.0
-        lon_min, lon_max = -18.0, -11.0
-        
-        for i, (city_name, lat, lon) in enumerate(cities_data):
+        for i, city_data in enumerate(cities_from_api):
+            city_name = city_data['name']
+            lat = city_data['latitude']
+            lon = city_data['longitude']
+            lat_idx = city_data['lat_idx']
+            lon_idx = city_data['lon_idx']
             try:
-                # Calculer les indices de grille pour cette ville
-                lat_idx = int(20 - ((lat - lat_min) / (lat_max - lat_min)) * 20)
-                lon_idx = int(((lon - lon_min) / (lon_max - lon_min)) * 28)
-                
-                # S'assurer que les indices sont dans les limites
-                lat_idx = max(0, min(20, lat_idx))
-                lon_idx = max(0, min(28, lon_idx))
-                
-                # Extraire les données réelles via l'API
+                # Utiliser les indices de grille calculés par l'API backend
                 params = {
                     'var': variable,  # Le backend attend 'var' pas 'variable'
                     'start_year': start_year,
@@ -267,7 +269,7 @@ def get_cities_climate_data(variable, start_year, end_year):
                     'indices': (lat_idx, lon_idx)
                 })
                 
-                progress_bar.progress((i + 1) / len(cities_data))
+                progress_bar.progress((i + 1) / len(cities_from_api))
                 
             except Exception as e:
                 # Fallback: utiliser les données nationales ajustées
@@ -277,9 +279,9 @@ def get_cities_climate_data(variable, start_year, end_year):
                     'lat': lat,
                     'lon': lon,
                     'temperature': temp_value,
-                    'indices': (0, 0)
+                    'indices': (lat_idx, lon_idx)
                 })
-                progress_bar.progress((i + 1) / len(cities_data))
+                progress_bar.progress((i + 1) / len(cities_from_api))
         
         progress_bar.empty()
         return cities_climate
@@ -395,43 +397,27 @@ def fetch_locality_data(variable, start_year, end_year, lat_idx, lon_idx, city_n
             st.warning("⚠️ API indisponible - Utilisation des données nationales")
             return fetch_data(variable, start_year, end_year)
         
-        # Coordonnées géographiques réelles des villes
-        city_coordinates = {
-            'Dakar': (14.693, -17.447),
-            'Kaolack': (14.159, -16.073),
-            'Saint-Louis': (16.033, -16.500),
-            'Thiès': (14.789, -16.926),
-            'Ziguinchor': (12.583, -16.267),
-            'Diourbel': (14.660, -16.233),
-            'Tambacounda': (13.767, -13.668),
-            'Fatick': (14.335, -16.407),
-            'Kolda': (12.894, -14.942),
-            'Matam': (15.655, -13.256),
-            'Kédougou': (12.557, -12.176),
-            'Sédhiou': (12.709, -15.557),
-            'Louga': (15.619, -16.228),
-            'Kaffrine': (14.106, -15.550),
-            'Touba': (14.850, -15.883)
-        }
+        # Récupérer les coordonnées depuis l'API
+        cities_from_api = get_available_localities_from_api()
+        city_info = None
         
-        if city_name not in city_coordinates:
-            st.warning(f"⚠️ Coordonnées non trouvées pour {city_name}")
+        if cities_from_api:
+            for city in cities_from_api:
+                if city['name'] == city_name:
+                    city_info = city
+                    break
+        
+        if not city_info:
+            st.warning(f"⚠️ Coordonnées non trouvées pour {city_name} dans l'API")
             return fetch_data(variable, start_year, end_year)
         
-        lat, lon = city_coordinates[city_name]
+        lat = city_info['latitude']
+        lon = city_info['longitude']
+        # Utiliser les indices de grille calculés par l'API
+        lat_idx_real = city_info['lat_idx']
+        lon_idx_real = city_info['lon_idx']
         
-        # Calculer les indices NetCDF corrects
-        # NetCDF va de 17°N à 12°N (21 points) et de -18°W à -11°W (29 points)
-        lat_min, lat_max = 12.0, 17.0
-        lon_min, lon_max = -18.0, -11.0
-        
-        # Calculer les indices réels dans la grille NetCDF
-        lat_idx_real = int(20 - ((lat - lat_min) / (lat_max - lat_min)) * 20)
-        lon_idx_real = int(((lon - lon_min) / (lon_max - lon_min)) * 28)
-        
-        # S'assurer que les indices sont dans les limites
-        lat_idx_real = max(0, min(20, lat_idx_real))
-        lon_idx_real = max(0, min(28, lon_idx_real))
+        # Les indices sont déjà calculés correctement par l'API backend
         
 
         
@@ -1134,7 +1120,7 @@ def create_climate_heatmap(variable, start_year, end_year):
             df.to_csv(f.name, index=False)
             temp_csv_path = f.name
         
-        # Ajouter la heatmap
+        # Ajouter la heatmap avec les informations intégrées
         m.add_heatmap(
             temp_csv_path,
             latitude="latitude",
@@ -1152,14 +1138,6 @@ def create_climate_heatmap(variable, start_year, end_year):
                 1.0: '#059669' if variable == 'tasmin' else '#dc2626'
             }
         )
-        
-        # Ajouter des marqueurs pour les villes
-        for _, row in df.iterrows():
-            m.add_marker(
-                location=[row['latitude'], row['longitude']],
-                popup=f"{row['city']}<br>{row['temperature']}°C",
-                tooltip=f"{row['city']}: {row['temperature']}°C"
-            )
         
         # Nettoyer le fichier temporaire
         try:
@@ -1516,40 +1494,70 @@ def create_navigation_sidebar():
         # Période compacte
         col1, col2 = st.columns(2)
         with col1:
-            start_year = st.number_input("", min_value=1960, max_value=2023, value=1980, key="start_year", label_visibility="collapsed")
+            start_year = st.number_input("", min_value=1960, max_value=2023, value=2010, key="start_year", label_visibility="collapsed")
         with col2:
             end_year = st.number_input("", min_value=1961, max_value=2024, value=2020, key="end_year", label_visibility="collapsed")
         
         # Localités
         st.markdown("**Localité**")
         
+        # Récupérer dynamiquement les localités depuis l'API
+        cities_from_api = get_available_localities_from_api()
+        
         regions = {
             "🇸🇳 National": [
                 {"name": "Moyenne nationale", "type": "national", "lat_idx": None, "lon_idx": None}
-            ],
-            "🏙️ Grandes villes": [
-                {"name": "Dakar", "type": "city", "lat": 14.693, "lon": -17.447, "lat_idx": 9, "lon_idx": 2},
-                {"name": "Thiès", "type": "city", "lat": 14.789, "lon": -16.926, "lat_idx": 9, "lon_idx": 4},
-                {"name": "Kaolack", "type": "city", "lat": 14.159, "lon": -16.073, "lat_idx": 11, "lon_idx": 8},
-                {"name": "Saint-Louis", "type": "city", "lat": 16.033, "lon": -16.500, "lat_idx": 4, "lon_idx": 6},
-            ],
-            "🌾 Autres régions": [
-                {"name": "Ziguinchor", "type": "city", "lat": 12.583, "lon": -16.267, "lat_idx": 18, "lon_idx": 7},
-                {"name": "Tambacounda", "type": "city", "lat": 13.767, "lon": -13.668, "lat_idx": 13, "lon_idx": 17},
-                {"name": "Diourbel", "type": "city", "lat": 14.660, "lon": -16.233, "lat_idx": 9, "lon_idx": 7},
-                {"name": "Fatick", "type": "city", "lat": 14.335, "lon": -16.407, "lat_idx": 11, "lon_idx": 6},
             ]
         }
+        
+        # Organiser les 94 villes par région administrative si l'API est accessible
+        if cities_from_api:
+            # Organiser par régions administratives du Sénégal
+            regions_admin = {}
+            
+            for city in cities_from_api:
+                city_info = {
+                    "name": city['name'],
+                    "type": "city",
+                    "lat": city['latitude'],
+                    "lon": city['longitude'],
+                    "lat_idx": city['lat_idx'],
+                    "lon_idx": city['lon_idx'],
+                    "region": city.get('region', 'Autre'),
+                    "city_type": city.get('type', 'Ville')
+                }
+                
+                # Regrouper par région administrative
+                region = city.get('region', 'Autre')
+                region_key = f"🏛️ {region}"
+                
+                if region_key not in regions_admin:
+                    regions_admin[region_key] = []
+                regions_admin[region_key].append(city_info)
+            
+            # Ajouter toutes les régions administratives
+            regions.update(regions_admin)
+        else:
+            # Fallback amélioré en cas d'erreur API
+            regions["⚠️ Principales villes (Fallback)"] = [
+                {"name": "Dakar", "type": "city", "lat": 14.7167, "lon": -17.4677, "lat_idx": 11, "lon_idx": 2, "region": "Dakar"},
+                {"name": "Thiès", "type": "city", "lat": 14.7886, "lon": -16.926, "lat_idx": 11, "lon_idx": 4, "region": "Thiès"},
+                {"name": "Saint-Louis", "type": "city", "lat": 16.0469, "lon": -16.4814, "lat_idx": 16, "lon_idx": 6, "region": "Saint-Louis"},
+                {"name": "Ziguinchor", "type": "city", "lat": 12.5681, "lon": -16.2736, "lat_idx": 2, "lon_idx": 7, "region": "Ziguinchor"}
+            ]
         
         # Créer une liste plate pour le selectbox
         localities_list = []
         for region_name, cities in regions.items():
             localities_list.extend(cities)
         
-        # Selectbox compact
+        # Interface simplifiée pour les localités
+        locality_options = [loc["name"] for loc in localities_list]
+        
+        # Selectbox avec options filtrées
         selected_locality_name = st.selectbox(
             "",
-            options=[loc["name"] for loc in localities_list],
+            options=locality_options,
             key="sidebar_locality_select",
             label_visibility="collapsed"
         )
@@ -1570,25 +1578,31 @@ def create_navigation_sidebar():
             )
         
         with col2:
-            if st.button("Export", use_container_width=True, type="secondary"):
-                with st.spinner("Export..."):
-                    try:
-                        data_content = download_data_from_api(variable, start_year, end_year, format_type)
-                        if data_content:
-                            filename = f"{selected_locality_name.replace(' ', '_')}_{variable}_{start_year}_{end_year}.{format_type}"
-                            mime_type = "text/csv" if format_type == "csv" else "application/x-netcdf"
-                            
-                            st.download_button(
-                                label=f"⬇️",
-                                data=data_content,
-                                file_name=filename,
-                                mime=mime_type,
-                                use_container_width=True
-                            )
-                        else:
-                            st.error("Erreur export")
-                    except Exception as e:
-                        st.error("Erreur export")
+            # Préparer les données pour le téléchargement direct
+            try:
+                data_content = download_data_from_api(variable, start_year, end_year, format_type)
+                if data_content:
+                    filename = f"{selected_locality_name.replace(' ', '_')}_{variable}_{start_year}_{end_year}.{format_type}"
+                    mime_type = "text/csv" if format_type == "csv" else "application/x-netcdf"
+                    
+                    # Bouton de téléchargement direct en un clic
+                    st.download_button(
+                        label="Export",
+                        data=data_content,
+                        file_name=filename,
+                        mime=mime_type,
+                        use_container_width=True,
+                        type="primary"  # "primary" rend le bouton bleu dans Streamlit
+                    )
+                else:
+                    st.button("❌ Données indisponibles", disabled=True, use_container_width=True)
+            except Exception as e:
+                st.button("❌ Erreur export", disabled=True, use_container_width=True)
+            
+
+
+                    # Ancien code de téléchargement automatique supprimé car Streamlit ne permet pas de forcer le téléchargement sans interaction utilisateur.
+                    # Le bouton de téléchargement direct est déjà géré ci-dessus.
         
         # # Actualiser compact
         # if st.button("🔄", use_container_width=True, type="primary"):
@@ -1640,7 +1654,7 @@ def main():
     lon_idx = selected_locality.get("lon_idx")
     
     if analysis_mode == "national":
-        st.info("Mode analyse nationale")
+        st.info("Analyse nationale")
     else:
         st.info(f"Localité : **{selected_locality_name}**")
         
@@ -1700,10 +1714,10 @@ def main():
     if load_data or 'data_loaded' in st.session_state:
         st.session_state.data_loaded = True
         
-        with st.spinner("📂 Extraction des données NetCDF..."):
+        with st.spinner("📂 Extraction des données"):
             if analysis_mode == "national":
                 data = fetch_data(variable, start_year, end_year)
-                location_title = "Sénégal (Moyenne nationale)"
+                location_title = "Sénégal (Nationale)"
             else:
                 if lat_idx is not None and lon_idx is not None:
                     # 🎯 MODE LOCALITÉ - AFFICHAGE IMMÉDIAT DES INFORMATIONS DÉTAILLÉES
@@ -1806,19 +1820,7 @@ def main():
         except Exception as e:
             st.error(f"❌ Erreur lors du chargement des données spatiales: {e}")
 
-    # Section Heatmap pour l'analyse nationale
-    if analysis_mode == "national":
-        st.markdown("---")
-        st.subheader("🔥 Heatmap Climatique du Sénégal")
-        
-        with st.spinner("Génération de la heatmap..."):
-            heatmap = create_climate_heatmap(variable, start_year, end_year)
-            
-            if heatmap:
-                st.markdown(f"**Heatmap des températures {variable.upper()} ({start_year}-{end_year})**")
-                heatmap.to_streamlit(height=600)
-            else:
-                st.warning("⚠️ Impossible de générer la heatmap. Vérifiez que les données sont disponibles.")
+
     
 
     
