@@ -171,7 +171,7 @@ def get_available_localities_from_api():
         if not check_api_health():
             return None
         
-        response = requests.get(f"{API_BASE_URL}/localities/extended", timeout=15)
+        response = requests.get(f"{API_BASE_URL}/localities", timeout=15)
         
         if response.status_code == 200:
             localities_data = response.json()
@@ -1208,7 +1208,7 @@ def download_data_from_api(variable, start_year, end_year, format_type):
 
 def show_locality_expander(locality_name, locality_data, variable, start_year, end_year):
     # Ne pas afficher l'analyse complète pour la moyenne nationale
-    if locality_name == "Moyenne nationale" or "nationale" in locality_name.lower():
+    if locality_name == "Nationale" or "nationale" in locality_name.lower():
         return
         
     try:

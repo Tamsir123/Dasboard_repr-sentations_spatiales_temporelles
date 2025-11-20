@@ -1,34 +1,79 @@
-# Fichiers de données volumineux - IMPORTANT
-*.nc
-*.csv
-data/
-*/data/
-backend*climatique/data/
+# 🌍 Dashboard Climatique Sénégal - .gitignore
 
+# ===== PYTHON =====
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
-# Environments
-.env
+# ===== ENVIRONNEMENT =====
+# Virtual environments
 .venv/
-env/
 venv/
+env/
+ENV/
+.env.local
+.env.*.local
 
+# Environment variables (garder .env pour la config)
+# .env
+
+# ===== DONNÉES =====
+# Fichiers de données volumineux (IMPORTANT)
+*.nc
+*.netcdf
+
+# Exports temporaires
+*_export.csv
+*_temp.csv
+*_backup.*
+
+# ===== LOGS & CACHE =====
+# Logs
+*.log
+backend.log
+ngrok.out
+
+# Cache
+.cache/
+.pytest_cache/
+.mypy_cache/
+
+# ===== DOCKER =====
+# Docker volumes locaux
+docker-data/
+
+# ===== DÉVELOPPEMENT =====
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
+.directory
 
-# Streamlit
+# ===== STREAMLIT =====
+# Secrets Streamlit
 .streamlit/secrets.toml
 
-# Logs
-*.log
+# ===== NGROK =====
+# Tunnel ngrok
+ngrok
+ngrok.exe
 
-# Docker
-*.dockerignore
+# ===== TEMPORAIRES =====
+# Fichiers temporaires
+*.tmp
+*.bak
+temp/
+tmp/
+
+# Scripts de test
+test_*.py
+*_test.py
+debug_*.py

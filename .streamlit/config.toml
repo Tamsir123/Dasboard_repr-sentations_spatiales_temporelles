@@ -1,0 +1,18 @@
+[theme]
+# Configuration du thème sombre par défaut
+primaryColor = "#3b82f6"
+backgroundColor = "#1e2329"
+secondaryBackgroundColor = "#2d3748"
+textColor = "#ffffff"
+base = "dark"
+
+[server]
+# Configuration du serveur
+headless = true
+port = 8501
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+# Configuration du navigateur
+gatherUsageStats = false
