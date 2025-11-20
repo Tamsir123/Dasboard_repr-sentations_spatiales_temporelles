@@ -1,3 +1,5 @@
+# Ignorer les gros fichiers CSV climatiques
+backend dasboard climatique/data/csv_optimized/*.csv
 # 🌍 Dashboard Climatique Sénégal - .gitignore
 
 # ===== PYTHON =====
