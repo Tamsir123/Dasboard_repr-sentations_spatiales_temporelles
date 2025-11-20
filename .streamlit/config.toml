@@ -1,10 +1,10 @@
 [theme]
-# Configuration du thème sombre par défaut
-primaryColor = "#3b82f6"
-backgroundColor = "#1e2329"
-secondaryBackgroundColor = "#2d3748"
-textColor = "#ffffff"
+# Thème sombre par défaut
 base = "dark"
+primaryColor = "#3b82f6"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#ffffff"
 
 [server]
 # Configuration du serveur

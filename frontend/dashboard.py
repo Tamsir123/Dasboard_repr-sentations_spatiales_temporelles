@@ -47,52 +47,33 @@ def check_locality_change():
         return True
     return False
 
-# Style CSS propre et moderne
+# CSS minimal pour améliorer la lisibilité sans forcer de thème
 st.markdown("""
 <style>
-    /* Sidebar styling */
-    .css-1d391kg {
-        background-color: #1e2329;
+    /* Amélioration de la lisibilité générale */
+    .main > div {
+        padding-top: 1rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
     }
     
-    /* Labels et textes sidebar */
+    /* Titre principal plus visible */
+    h1 {
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 10px;
+    }
+    
+    /* Boutons plus contrastés */
+    .stButton > button {
+        font-weight: 600;
+        border-radius: 8px;
+    }
+    
+    /* Sidebar plus compacte */
     .stSidebar .stSelectbox label, 
-    .stSidebar .stNumberInput label,
-    .stSidebar label,
-    .stSidebar h3,
-    .stSidebar h2 {
-        color: #ffffff !important;
-        font-weight: 500 !important;
-        font-size: 14px !important;
-    }
-    
-    /* Champs de saisie */
-    .stSidebar .stSelectbox > div > div, 
-    .stSidebar .stNumberInput > div > div {
-        background-color: #2d3748 !important;
-        border: 1px solid #4a5568 !important;
-        border-radius: 6px !important;
-    }
-    
-    /* Texte dans les champs */
-    .stSidebar .stSelectbox > div > div > div, 
-    .stSidebar .stSelectbox select,
-    .stSidebar .stNumberInput input {
-        color: #ffffff !important;
-        background-color: transparent !important;
-    }
-    
-    /* Boutons sidebar */
-    .stSidebar .stButton > button {
-        background-color: #4299e1 !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 6px !important;
-        font-weight: 500 !important;
-    }
-    
-    .stSidebar .stButton > button:hover {
-        background-color: #3182ce !important;
+    .stSidebar .stNumberInput label {
+        font-weight: 500;
+        font-size: 14px;
     }
     
     /* Main content */
@@ -169,7 +150,7 @@ def get_available_localities_from_api():
     """Récupérer toutes les localités disponibles depuis l'API backend"""
     try:
         if not check_api_health():
-            return None
+            return get_fallback_localities()
         
         response = requests.get(f"{API_BASE_URL}/localities", timeout=15)
         
@@ -177,12 +158,32 @@ def get_available_localities_from_api():
             localities_data = response.json()
             return localities_data.get('cities', [])
         else:
-            st.error(f"❌ Erreur API localités: {response.status_code}")
-            return None
+            # Utilisation silencieuse des données par défaut
+            return get_fallback_localities()
             
     except Exception as e:
-        st.error(f"❌ Erreur lors de la récupération des localités: {e}")
-        return None
+        # Utilisation silencieuse des données par défaut
+        return get_fallback_localities()
+
+def get_fallback_localities():
+    """Données de localités de fallback quand l'API ne fonctionne pas"""
+    return [
+        {"name": "Dakar", "latitude": 14.7167, "longitude": -17.4677, "lat_idx": 11, "lon_idx": 2, "region": "Dakar", "type": "Capitale"},
+        {"name": "Thiès", "latitude": 14.7886, "longitude": -16.926, "lat_idx": 11, "lon_idx": 4, "region": "Thiès", "type": "Ville"},
+        {"name": "Saint-Louis", "latitude": 16.0469, "longitude": -16.4814, "lat_idx": 16, "lon_idx": 6, "region": "Saint-Louis", "type": "Ville"},
+        {"name": "Kaolack", "latitude": 14.1593, "longitude": -16.0724, "lat_idx": 8, "lon_idx": 5, "region": "Kaolack", "type": "Ville"},
+        {"name": "Ziguinchor", "latitude": 12.5681, "longitude": -16.2736, "lat_idx": 2, "lon_idx": 7, "region": "Ziguinchor", "type": "Ville"},
+        {"name": "Tambacounda", "latitude": 13.7671, "longitude": -13.6675, "lat_idx": 7, "lon_idx": 12, "region": "Tambacounda", "type": "Ville"},
+        {"name": "Kolda", "latitude": 12.8939, "longitude": -14.9417, "lat_idx": 3, "lon_idx": 9, "region": "Kolda", "type": "Ville"},
+        {"name": "Diourbel", "latitude": 14.6598, "longitude": -16.2353, "lat_idx": 10, "lon_idx": 6, "region": "Diourbel", "type": "Ville"},
+        {"name": "Louga", "latitude": 15.6181, "longitude": -16.2265, "lat_idx": 14, "lon_idx": 6, "region": "Louga", "type": "Ville"},
+        {"name": "Fatick", "latitude": 14.3347, "longitude": -16.4069, "lat_idx": 9, "lon_idx": 5, "region": "Fatick", "type": "Ville"},
+        {"name": "Kaffrine", "latitude": 14.1058, "longitude": -15.5503, "lat_idx": 8, "lon_idx": 8, "region": "Kaffrine", "type": "Ville"},
+        {"name": "Kédougou", "latitude": 12.5603, "longitude": -12.1750, "lat_idx": 2, "lon_idx": 15, "region": "Kédougou", "type": "Ville"},
+        {"name": "Matam", "latitude": 15.6556, "longitude": -13.2519, "lat_idx": 14, "lon_idx": 13, "region": "Matam", "type": "Ville"},
+        {"name": "Sédhiou", "latitude": 12.7081, "longitude": -15.5569, "lat_idx": 3, "lon_idx": 8, "region": "Sédhiou", "type": "Ville"},
+        {"name": "Keur Massar", "latitude": 14.7831, "longitude": -17.3239, "lat_idx": 11, "lon_idx": 3, "region": "Dakar", "type": "Ville"}
+    ]
 
 def get_cities_climate_data(variable, start_year, end_year):
     """Récupérer les vraies données climatiques pour toutes les localités disponibles"""
@@ -1485,18 +1486,19 @@ def create_navigation_sidebar():
         
         # Variable climatique
         variable = st.selectbox(
-            "",
+            "Variable climatique",
             options=["tasmax", "tasmin"],
             format_func=lambda x: "🌡️ Tasmax" if x == "tasmax" else "🌡️ TasMin",
-            key="variable_select"
+            key="variable_select",
+            label_visibility="collapsed"
         )
         
         # Période compacte
         col1, col2 = st.columns(2)
         with col1:
-            start_year = st.number_input("", min_value=1960, max_value=2023, value=2010, key="start_year", label_visibility="collapsed")
+            start_year = st.number_input("Année début", min_value=1960, max_value=2023, value=2010, key="start_year", label_visibility="collapsed")
         with col2:
-            end_year = st.number_input("", min_value=1961, max_value=2024, value=2020, key="end_year", label_visibility="collapsed")
+            end_year = st.number_input("Année fin", min_value=1961, max_value=2024, value=2020, key="end_year", label_visibility="collapsed")
         
         # Localités
         st.markdown("**Localité**")
@@ -1556,7 +1558,7 @@ def create_navigation_sidebar():
         
         # Selectbox avec options filtrées
         selected_locality_name = st.selectbox(
-            "",
+            "Localité",
             options=locality_options,
             key="sidebar_locality_select",
             label_visibility="collapsed"
@@ -1571,7 +1573,7 @@ def create_navigation_sidebar():
         
         with col1:
             format_type = st.selectbox(
-                "",
+                "Format",
                 options=["csv", "netcdf"],
                 key="format_select",
                 label_visibility="collapsed"
