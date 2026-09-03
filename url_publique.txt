@@ -1,6 +1,0 @@
-🌐 Dashboard climatique Sénégal
-URL directe (sans avertissement ngrok):
-https://definitely-unpragmatical-rosemarie.ngrok-free.dev?ngrok-skip-browser-warning=true
-
-URL standard:
-https://definitely-unpragmatical-rosemarie.ngrok-free.dev
