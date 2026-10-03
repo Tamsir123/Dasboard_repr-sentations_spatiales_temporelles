@@ -15,5 +15,4 @@ pandas>=2.0.0
 matplotlib>=3.7.0
 cartopy>=0.22.0
 
-# Utilitaires
 python-multipart>=0.0.6
